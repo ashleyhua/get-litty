@@ -19,10 +19,10 @@
 
 |   Info      |        Description     |
 | ----------- | ---------------------- |
-|  Title      |       ProjectTitle     |
+|  Title      |       GetLitty         |
 | System URL  |      link_to_system    |
 | Video Link  |      link_to_video     |
 
 ## Project Summary
 
-This is a summary of the project!
+Our project aims to build a concert travel planner web application that helps users decide the most cost-effective city to attend a concert or live event. The application will combine data from Ticketmaster’s Discovery API (concert and event information) and Airbnb’s open datasets (lodging availability and cost). By merging these sources, the application will recommend where users should travel for an event based not only on availability but also on affordability. This makes the application especially useful for attendees who want to plan trips while keeping expenses low.
