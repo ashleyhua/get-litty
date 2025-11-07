@@ -1,1 +1,67 @@
-<!-- hello -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>GetLitty — Demo Frontend</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>GetLitty 🎵</h1>
+      <p class="muted">Find the cheapest city to see a concert — frontend demo</p>
+    </header>
+
+    <section class="controls">
+      <input id="artistInput" placeholder="Artist or genre (e.g. 'indie', 'Beyoncé')" />
+      <select id="stateSelect">
+        <option value="">All states</option>
+        <option value="NY">NY</option>
+        <option value="CA">CA</option>
+        <option value="IL">IL</option>
+        <option value="TX">TX</option>
+      </select>
+
+      <label class="small">Date from <input id="startDate" type="date"></label>
+      <label class="small">to <input id="endDate" type="date"></label>
+
+      <label class="small">Max distance (mi)
+        <input id="distanceRange" type="range" min="1" max="200" value="25">
+        <span id="distVal">25</span>
+      </label>
+
+      <div class="buttons">
+        <button id="searchBtn">Search</button>
+        <button id="surpriseBtn">Surprise me 🎲</button>
+      </div>
+    </section>
+
+    <section id="bestPanel" class="best-panel" style="display:none"></section>
+
+    <section class="results">
+      <div class="left">
+        <h3>Results</h3>
+        <table id="resultsTable">
+          <thead>
+            <tr><th>#</th><th>City</th><th>Date</th><th>Venue</th><th>Ticket $</th><th>Avg Airbnb $</th><th>Total $</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="right">
+        <h3>Map (placeholder)</h3>
+        <div id="mapPlaceholder">Map will go here — add Leaflet later</div>
+        <p class="muted">Top 5 cheapest shown on map</p>
+      </div>
+    </section>
+
+    <footer>
+      <small class="muted">Frontend demo — uses mock data until backend is connected</small>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
