@@ -1,8 +1,3 @@
-// ================================================
-// ✅ FINAL WORKING script.js
-// ================================================
-
-// Change this to your backend URL if deployed
 const backendURL = "http://localhost:5000";
 
 /**
