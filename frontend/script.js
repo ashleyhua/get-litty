@@ -1,7 +1,21 @@
-
+// script.js (updated to match frontend columns)
 // backend base URL
 const backendURL = "http://localhost:5000";
 
+/**
+ * Fetches events from backend REST API
+ *
+ * Expected/accepted backend field names (we try several aliases):
+ *  - event_id
+ *  - event_name | name
+ *  - venue_name
+ *  - city_name | city
+ *  - state
+ *  - date (ISO string)
+ *  - distance_mi | distance | dist_mi
+ *  - listing_id | listingId | airbnb_listing_id
+ *  - price_per_night | avg_price | avg_airbnb
+ */
 async function getEvents() {
   try {
     const response = await fetch(`${backendURL}/events/recommendations`);
@@ -95,7 +109,8 @@ function renderBest(events) {
     <strong>Best Option</strong>
     <div>${escapeHtml(best.name)} — ${escapeHtml(best.city_name)}, ${escapeHtml(best.state)} on ${escapeHtml(best.date)}</div>
     <div>
-      Distance from Venue: ${Number(best.distance).toFixed(1)} mi • 
+      Distance: ${Number(best.distance).toFixed(1)} mi • 
+      Airbnb listing: ${escapeHtml(best.listing_id)} • 
       Avg Airbnb: ${best.avg_airbnb !== undefined ? `$${best.avg_airbnb.toFixed(2)}` : '$0.00'}
     </div>
   `;
@@ -105,6 +120,7 @@ function renderBest(events) {
  * Search button handler
  */
 document.getElementById("searchBtn").addEventListener("click", async () => {
+  // (optional) read filters and pass as query params in future
   const events = await getEvents();
   populateTable(events);
   renderBest(events);
@@ -127,6 +143,8 @@ function escapeHtml(str) {
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   }[c]));
 }
+
+// Initialize distance range display if present
 const distRange = document.getElementById('distanceRange');
 const distVal = document.getElementById('distVal');
 if (distRange && distVal) {
