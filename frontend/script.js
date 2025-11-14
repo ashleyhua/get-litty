@@ -1,8 +1,7 @@
+
+// backend base URL
 const backendURL = "http://localhost:5000";
 
-/**
- * Fetches events from backend REST API
- */
 async function getEvents() {
   try {
     const response = await fetch(`${backendURL}/events/recommendations`);
@@ -12,15 +11,19 @@ async function getEvents() {
     const data = await response.json();
 
     return data.map(e => ({
-      id: e.event_id,
-      name: e.event_name,
-      venue_name: e.venue_name || "",
-      city_name: e.city_name,
-      state: e.state,
-      date: e.date?.split("T")[0] || "",
-      ticket_price: Number(e.ticket_price) || 0,
-      avg_airbnb: Number(e.price_per_night) || 0,
-      total_cost: Number(e.estimated_total_cost) || 0
+      id: e.event_id ?? e.id ?? null,
+      name: e.event_name ?? e.name ?? "",
+      venue_name: e.venue_name ?? e.venue ?? "",
+      city_name: e.city_name ?? e.city ?? "",
+      state: e.state ?? "",
+      // Normalize date to YYYY-MM-DD (if ISO string)
+      date: (e.date && typeof e.date === 'string' && e.date.split) ? e.date.split("T")[0] : (e.date || ""),
+      // distance: try several possible names
+      distance: Number(e.distance_mi ?? e.distance ?? e.dist_mi ?? 0),
+      // listing id
+      listing_id: e.listing_id ?? e.listingId ?? e.airbnb_listing_id ?? "",
+      // avg airbnb price
+      avg_airbnb: Number(e.price_per_night ?? e.avg_price ?? e.avg_airbnb ?? 0)
     }));
   } catch (err) {
     console.error("error fetching events:", err);
@@ -30,35 +33,52 @@ async function getEvents() {
 
 /**
  * Populate table with returned rows
+ * Table columns:
+ *  # | Event | City | Date | Venue | Distance (mi) | Airbnb ListingID | Avg Airbnb ($)
  */
 function populateTable(events) {
   const tbody = document.querySelector("#resultsTable tbody");
   tbody.innerHTML = "";
 
   if (!events.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="muted">No results found</td></tr>`;
+    // colspan = 8 columns
+    tbody.innerHTML = `<tr><td colspan="8" class="muted">No results found</td></tr>`;
     return;
   }
 
   events.forEach((e, idx) => {
     const row = document.createElement("tr");
 
+    // formatting helpers
+    const safe = v => (v === null || v === undefined ? "" : v);
+    const fmtMoney = n => (Number.isFinite(n) ? `$${n.toFixed(2)}` : "$0.00");
+    const fmtDist = n => (Number.isFinite(n) ? n.toFixed(1) : "0.0");
+
     row.innerHTML = `
       <td>${idx + 1}</td>
-      <td>${e.city_name}, ${e.state}</td>
-      <td>${e.date}</td>
-      <td>${e.venue_name}</td>
-      <td>$${e.ticket_price.toFixed(2)}</td>
-      <td>$${e.avg_airbnb.toFixed(2)}</td>
-      <td><strong>$${e.total_cost.toFixed(2)}</strong></td>
+      <td>${escapeHtml(safe(e.name))}</td>                                      <!-- Event -->
+      <td>${escapeHtml(safe(e.city_name))}, ${escapeHtml(safe(e.state))}</td>   <!-- City, State -->
+      <td>${escapeHtml(safe(e.date))}</td>                                      <!-- Date -->
+      <td>${escapeHtml(safe(e.venue_name))}</td>                                <!-- Venue -->
+      <td style="text-align:right">${fmtDist(e.distance)}</td>                  <!-- Distance -->
+      <td style="text-align:right">${escapeHtml(safe(e.listing_id))}</td>       <!-- Airbnb ListingID -->
+      <td style="text-align:right">${fmtMoney(e.avg_airbnb)}</td>               <!-- Avg Airbnb -->
     `;
+
+    // optional: highlight row on click (for map integration later)
+    row.addEventListener("click", () => {
+      document.querySelectorAll("#resultsTable tbody tr").forEach(r => r.classList.remove("selected"));
+      row.classList.add("selected");
+      // TODO: if backend returns latitude/longitude, pan map to coords here
+    });
 
     tbody.appendChild(row);
   });
 }
 
 /**
- * Display best (cheapest) event
+ * Display best (recommended) event
+ * We treat the first event in `events` as the best.
  */
 function renderBest(events) {
   const bestPanel = document.getElementById("bestPanel");
@@ -73,9 +93,10 @@ function renderBest(events) {
   bestPanel.style.display = "block";
   bestPanel.innerHTML = `
     <strong>Best Option</strong>
-    <div>${best.name} — ${best.city_name}, ${best.state} on ${best.date}</div>
+    <div>${escapeHtml(best.name)} — ${escapeHtml(best.city_name)}, ${escapeHtml(best.state)} on ${escapeHtml(best.date)}</div>
     <div>
-      <strong> Total: $${best.avg_airbnb.toFixed(2)} • </strong>
+      Distance from Venue: ${Number(best.distance).toFixed(1)} mi • 
+      Avg Airbnb: ${best.avg_airbnb !== undefined ? `$${best.avg_airbnb.toFixed(2)}` : '$0.00'}
     </div>
   `;
 }
@@ -97,3 +118,18 @@ document.getElementById("surpriseBtn").addEventListener("click", async () => {
   populateTable(events);
   renderBest(events);
 });
+
+/* ---------- Utilities ---------- */
+
+// Basic HTML escape to avoid insertion issues
+function escapeHtml(str) {
+  return String(str || '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+const distRange = document.getElementById('distanceRange');
+const distVal = document.getElementById('distVal');
+if (distRange && distVal) {
+  distVal.textContent = distRange.value;
+  distRange.addEventListener('input', () => distVal.textContent = distRange.value);
+}
