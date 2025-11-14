@@ -75,9 +75,7 @@ function renderBest(events) {
     <strong>Best Option</strong>
     <div>${best.name} — ${best.city_name}, ${best.state} on ${best.date}</div>
     <div>
-      Ticket: $${best.ticket_price.toFixed(2)} • 
-      Airbnb: $${best.avg_airbnb.toFixed(2)} • 
-      <strong>Total: $${best.total_cost.toFixed(2)}</strong>
+      <strong> Total: $${best.avg_airbnb.toFixed(2)} • </strong>
     </div>
   `;
 }
