@@ -1,5 +1,9 @@
-// script.js
-// backend base URL
+// script.js — updated (includes map init on DOMContentLoaded, extra logs, and invalidateSize fix)
+// ADDED comments mark the small fixes for Leaflet/map reliability and debugging.
+
+//
+// Backend base URL
+//
 const backendURL = "http://localhost:5000";
 
 /* ---------------- Generic fetch + normalizer ---------------- */
@@ -36,15 +40,23 @@ function normalizeRow(e) {
     venue_name: e.venue_name ?? e.venue ?? "",
     city_name: e.city_name ?? e.city ?? "",
     state: e.state ?? "",
-    date: (e.date && typeof e.date === "string" && e.date.split) ? e.date.split("T")[0] : (e.date || ""),
+    date:
+      e.date && typeof e.date === "string" && e.date.split
+        ? e.date.split("T")[0]
+        : e.date || "",
     distance: Number(e.distance ?? e.distance_mi ?? e.dist_mi ?? 0),
     avg_airbnb: Number(e.price_per_night ?? e.avg_price ?? e.avg_airbnb ?? 0),
     ticket_price: Number(e.ticket_price ?? e.price ?? 0),
-    // cleaned fallback chain (removed duplicate)
     estimated_total_cost: Number(e.estimated_total_cost ?? e.cheapest_total_cost ?? 0),
     // venue coords (if server returned them)
-    venue_lat: Number.isFinite(Number(e.venue_lat)) ? Number(e.venue_lat) : NaN,
-    venue_lng: Number.isFinite(Number(e.venue_lng)) ? Number(e.venue_lng) : NaN
+    venue_lat:
+      e.venue_lat !== undefined && e.venue_lat !== null && !Number.isNaN(Number(e.venue_lat))
+        ? Number(e.venue_lat)
+        : NaN,
+    venue_lng:
+      e.venue_lng !== undefined && e.venue_lng !== null && !Number.isNaN(Number(e.venue_lng))
+        ? Number(e.venue_lng)
+        : NaN
   };
 }
 
@@ -109,6 +121,7 @@ function renderBest(events) {
   `;
 
   // show top-5 listings for this best event on the map
+  // ADDED: call to show map listings for the best result
   fetchAndShowTopListingsForEvent(b);
 }
 
@@ -164,25 +177,40 @@ attachIfExists("surpriseBtn", async () => {
 let map = null;
 let markersLayer = null;
 
+/**
+ * Initialize map if Leaflet is available
+ * ADDED: console logs for debugging
+ */
 function initMapIfNeeded() {
   if (map) return;
   if (typeof L === "undefined") {
     console.warn("Leaflet (L) not found. Make sure leaflet.js is loaded before script.js");
     return;
   }
-  map = L.map('map', { zoomControl: true });
+  console.log("[map] creating map");
+  map = L.map("map", { zoomControl: true });
   map.setView([39.5, -98.35], 4);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap contributors"
   }).addTo(map);
+
   markersLayer = L.layerGroup().addTo(map);
+  console.log("[map] created with tile layer and markers layer");
 }
 
+/**
+ * Clear all markers
+ */
 function clearMapMarkers() {
   if (!markersLayer) return;
   markersLayer.clearLayers();
 }
 
+/**
+ * Show top listings on the Leaflet map and fit bounds.
+ * ADDED: call invalidateSize() shortly after fitBounds to ensure tiles/markers render properly.
+ */
 function showTopListingsOnMap(listings = [], venueLatLng = null) {
   initMapIfNeeded();
   if (!map) return;
@@ -210,14 +238,30 @@ function showTopListingsOnMap(listings = [], venueLatLng = null) {
 
   if (venueLatLng && Number.isFinite(venueLatLng[0]) && Number.isFinite(venueLatLng[1])) {
     bounds.push(venueLatLng);
-    const venueMarker = L.circleMarker(venueLatLng, { radius: 7, color: '#1a73e8' }).bindPopup("<strong>Venue</strong>");
+    const venueMarker = L.circleMarker(venueLatLng, { radius: 7, color: "#1a73e8" }).bindPopup("<strong>Venue</strong>");
     markersLayer.addLayer(venueMarker);
   }
 
   if (bounds.length) {
-    map.fitBounds(bounds, { padding: [40, 40] });
+    try {
+      map.fitBounds(bounds, { padding: [40, 40] });
+    } catch (err) {
+      console.warn("[map] fitBounds error", err);
+    }
   } else if (venueLatLng) {
     map.setView(venueLatLng, 12);
+  }
+
+  // ADDED: invalidateSize after a short timeout to fix rendering when the container has changed
+  if (map && typeof map.invalidateSize === "function") {
+    setTimeout(() => {
+      try {
+        map.invalidateSize();
+        console.log("[map] invalidateSize called");
+      } catch (err) {
+        console.warn("[map] invalidateSize error:", err);
+      }
+    }, 150);
   }
 }
 
@@ -225,6 +269,9 @@ function showTopListingsOnMap(listings = [], venueLatLng = null) {
 async function fetchAndShowTopListingsForEvent(eventObj) {
   if (!eventObj || !eventObj.id) return;
   try {
+    // ensure map is initialized (ADDED)
+    initMapIfNeeded();
+
     const url = `${backendURL}/events/${eventObj.id}/top-listings`;
     console.log("[map] fetch", url);
     const res = await fetch(url);
@@ -233,10 +280,22 @@ async function fetchAndShowTopListingsForEvent(eventObj) {
       return;
     }
     const listings = await res.json();
-    const venueLatLng = (Number.isFinite(eventObj.venue_lat) && Number.isFinite(eventObj.venue_lng))
+
+    // map the returned listing rows to the expected shape (defensive)
+    const normalizedListings = (Array.isArray(listings) ? listings : []).map(l => ({
+      listing_id: l.listing_id ?? l.id ?? "",
+      latitude: Number(l.latitude ?? l.lat ?? l.lat_dd ?? NaN),
+      longitude: Number(l.longitude ?? l.lng ?? l.lon ?? NaN),
+      price_per_night: Number(l.price_per_night ?? l.price ?? 0),
+      distance: Number(l.distance ?? l.distance_mi ?? 0),
+      total_cost: Number(l.total_cost ?? 0)
+    }));
+
+    const venueLatLng = Number.isFinite(eventObj.venue_lat) && Number.isFinite(eventObj.venue_lng)
       ? [eventObj.venue_lat, eventObj.venue_lng]
       : null;
-    showTopListingsOnMap(listings, venueLatLng);
+
+    showTopListingsOnMap(normalizedListings, venueLatLng);
   } catch (err) {
     console.error("[map] error", err);
   }
@@ -244,12 +303,25 @@ async function fetchAndShowTopListingsForEvent(eventObj) {
 
 /* ---------- Utilities ---------- */
 function escapeHtml(str) {
-  return String(str || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  return String(str || "").replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
+  );
 }
 
-const distRange = document.getElementById('distanceRange');
-const distVal = document.getElementById('distVal');
+/* keep distance UI in sync */
+const distRange = document.getElementById("distanceRange");
+const distVal = document.getElementById("distVal");
 if (distRange && distVal) {
   distVal.textContent = distRange.value;
-  distRange.addEventListener('input', () => distVal.textContent = distRange.value);
+  distRange.addEventListener("input", () => (distVal.textContent = distRange.value));
 }
+
+/* ---------------- ADDED: init map as soon as DOM is ready (fix timing issues) ---------------- */
+document.addEventListener("DOMContentLoaded", () => {
+  try {
+    initMapIfNeeded();
+    console.log("[map] DOM loaded — initMapIfNeeded called");
+  } catch (err) {
+    console.error("[map] DOMContentLoaded init error", err);
+  }
+});
