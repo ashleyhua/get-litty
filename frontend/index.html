@@ -10,18 +10,11 @@
   <div class="container">
     <header>
       <h1>GetLitty 🎵</h1>
-      <p class="muted">Find the cheapest city to see a concert — frontend demo</p>
+      <p class="muted">Find the cheapest airbnb to see a concert!</p>
     </header>
 
     <section class="controls">
-      <input id="artistInput" placeholder="Artist or genre (e.g. 'indie', 'Beyoncé')" />
-      <select id="stateSelect">
-        <option value="">All states</option>
-        <option value="NY">NY</option>
-        <option value="CA">CA</option>
-        <option value="IL">IL</option>
-        <option value="TX">TX</option>
-      </select>
+      <input id="searchInput" type="text" placeholder="Search events...">
 
       <label class="small">Date from <input id="startDate" type="date"></label>
       <label class="small">to <input id="endDate" type="date"></label>
@@ -35,6 +28,15 @@
         <button id="searchBtn">Search</button>
         <button id="surpriseBtn">Surprise me 🎲</button>
       </div>
+
+      <!-- ADDED: Buttons to run each of the 4 SQL queries for demo/checkpoint -->
+      <div class="query-buttons" style="margin-top:10px;">
+        <button id="q1Btn">Q1 — Cheapest Airbnb per Event (≤1 mi)</button>
+        <button id="q2Btn">Q2 — Top Cheap in Illinois</button>
+        <button id="q3Btn">Q3 — Events with Most Available Listings (≤5 mi)</button>
+        <button id="q4Btn">Q4 — Chicago Concerts Below Avg Lodging</button>
+      </div>
+      <!-- END ADDED -->
     </section>
 
     <section id="bestPanel" class="best-panel" style="display:none"></section>

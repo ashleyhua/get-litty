@@ -157,4 +157,27 @@ app.get("/events/chicago-below-avg", (req, res) => {
   });
 });
 
+//Search Endpoint
+app.get("/events/search", async (req, res) => {
+  const name = req.query.name;
+
+  if (!name) {
+    return res.status(400).json({ error: "Missing event name" });
+  }
+
+  try {
+    const [rows] = await db.query(
+      `SELECT * FROM Event 
+       WHERE name LIKE CONCAT('%', ?, '%')
+       LIMIT 10`,
+      [name]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+
 app.listen(5000, () => console.log("backend running on http://localhost:5000"));
