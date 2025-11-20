@@ -2,10 +2,7 @@
 // backend base URL
 const backendURL = "http://localhost:5000";
 
-/**
- * Generic fetch for any endpoint that returns an array of rows.
- * This is defensive: it accepts multiple possible field names from the DB.
- */
+
 async function fetchEventsFromEndpoint(path) {
   const url = `${backendURL}${path}`;
   console.log("[fetch] GET", url);
@@ -86,9 +83,7 @@ function populateTable(events) {
   });
 }
 
-/**
- * renderBest - show the first row as the best option, but also include extra info if available
- */
+
 function renderBest(events) {
   const bestPanel = document.getElementById("bestPanel");
 
@@ -147,23 +142,21 @@ document.getElementById("q4Btn").addEventListener("click", async () => {
 
 /* ---------- keep existing Search & Surprise behavior ---------- */
 document.getElementById("searchBtn").addEventListener("click", async () => {
-  const query = document.getElementById("searchInput").value.trim();
-  
-  let events;
+  const q = encodeURIComponent(document.getElementById("searchInput").value.trim());
+  const start = document.getElementById("startDate").value; 
+  const end = document.getElementById("endDate").value;     
+  const maxDist = document.getElementById("distanceRange").value;
 
-  if (query === "") {
-    events = await fetchEventsFromEndpoint("/events/recommendations");
-  } else {
-    events = await fetchEventsFromEndpoint(`/events/search?name=${encodeURIComponent(query)}`);
-  }
-  
+  const url = `/events/search?name=${q}&startDate=${start}&endDate=${end}&maxDistance=${maxDist}`;
+
+  const events = await fetchEventsFromEndpoint(url);
+
   populateTable(events);
   renderBest(events);
 });
 
 
 document.getElementById("surpriseBtn").addEventListener("click", async () => {
-  // Surprise could call a backend endpoint that randomizes genre — we'll reuse recommendations for demo
   const events = await fetchEventsFromEndpoint("/events/recommendations");
   populateTable(events);
   renderBest(events);
