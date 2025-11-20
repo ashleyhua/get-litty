@@ -2,7 +2,7 @@
 // backend base URL
 const backendURL = "http://localhost:5000";
 
-
+/* ---------------- Generic fetch + normalizer ---------------- */
 async function fetchEventsFromEndpoint(path) {
   const url = `${backendURL}${path}`;
   console.log("[fetch] GET", url);
@@ -27,7 +27,7 @@ async function fetchEventsFromEndpoint(path) {
 
 /**
  * Normalize a DB row into the format the frontend expects:
- * { id, name, venue_name, city_name, state, date, distance, avg_airbnb, ticket_price, estimated_total_cost }
+ * { id, name, venue_name, city_name, state, date, distance, avg_airbnb, ticket_price, estimated_total_cost, venue_lat, venue_lng }
  */
 function normalizeRow(e) {
   return {
@@ -40,13 +40,15 @@ function normalizeRow(e) {
     distance: Number(e.distance ?? e.distance_mi ?? e.dist_mi ?? 0),
     avg_airbnb: Number(e.price_per_night ?? e.avg_price ?? e.avg_airbnb ?? 0),
     ticket_price: Number(e.ticket_price ?? e.price ?? 0),
-    estimated_total_cost: Number(e.estimated_total_cost ?? e.cheapest_total_cost ?? e.estimated_total_cost ?? 0)
+    // cleaned fallback chain (removed duplicate)
+    estimated_total_cost: Number(e.estimated_total_cost ?? e.cheapest_total_cost ?? 0),
+    // venue coords (if server returned them)
+    venue_lat: Number.isFinite(Number(e.venue_lat)) ? Number(e.venue_lat) : NaN,
+    venue_lng: Number.isFinite(Number(e.venue_lng)) ? Number(e.venue_lng) : NaN
   };
 }
 
-/**
- * populateTable - renders the table rows
- */
+/* ---------------- Table rendering ---------------- */
 function populateTable(events) {
   const tbody = document.querySelector("#resultsTable tbody");
   tbody.innerHTML = "";
@@ -76,13 +78,12 @@ function populateTable(events) {
     row.addEventListener("click", () => {
       document.querySelectorAll("#resultsTable tbody tr").forEach(r => r.classList.remove("selected"));
       row.classList.add("selected");
-      // TODO: pan map to coords here, if backend returns lat/lon
+      // optional: pan map to the clicked event's venue or listing (future)
     });
 
     tbody.appendChild(row);
   });
 }
-
 
 function renderBest(events) {
   const bestPanel = document.getElementById("bestPanel");
@@ -95,7 +96,6 @@ function renderBest(events) {
   const b = events[0];
   bestPanel.style.display = "block";
 
-  // Build extra info line if data available
   let extras = [];
   if (Number.isFinite(b.distance)) extras.push(`Distance: ${b.distance.toFixed(1)} mi`);
   if (Number.isFinite(b.ticket_price) && b.ticket_price > 0) extras.push(`Ticket: $${b.ticket_price.toFixed(2)}`);
@@ -107,63 +107,142 @@ function renderBest(events) {
     <div>${escapeHtml(b.name)} — ${escapeHtml(b.city_name)}, ${escapeHtml(b.state)} on ${escapeHtml(b.date)}</div>
     <div>${escapeHtml(extras.join(" • "))}</div>
   `;
+
+  // show top-5 listings for this best event on the map
+  fetchAndShowTopListingsForEvent(b);
 }
 
-/* ---------- Handlers for each query button ---------- */
+/* ---------- Safe attach helper ---------- */
+function attachIfExists(id, handler) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener("click", handler);
+}
 
-// Q1: Cheapest Airbnb per event (<=1 mile)
-document.getElementById("q1Btn").addEventListener("click", async () => {
+/* ---------- Query buttons ---------- */
+attachIfExists("q1Btn", async () => {
   const events = await fetchEventsFromEndpoint("/events/cheapest");
   populateTable(events);
   renderBest(events);
 });
-
-// Q2: Top cheapest concerts in Illinois
-document.getElementById("q2Btn").addEventListener("click", async () => {
+attachIfExists("q2Btn", async () => {
   const events = await fetchEventsFromEndpoint("/events/illinois-cheapest");
   populateTable(events);
   renderBest(events);
 });
-
-// Q3: Events with most available listings (you didn't have a dedicated endpoint for exactly this; we'll reuse recommendations but you can add new endpoint if desired)
-document.getElementById("q3Btn").addEventListener("click", async () => {
-  // If you have a special endpoint for query 3, replace with its path. For now use recommendations as a placeholder:
-  const events = await fetchEventsFromEndpoint("/events/recommendations");
+attachIfExists("q3Btn", async () => {
+  const events = await fetchEventsFromEndpoint("/events/most-availability");
   populateTable(events);
   renderBest(events);
 });
-
-// Q4: Chicago concerts with below-average lodging
-document.getElementById("q4Btn").addEventListener("click", async () => {
+attachIfExists("q4Btn", async () => {
   const events = await fetchEventsFromEndpoint("/events/chicago-below-avg");
   populateTable(events);
   renderBest(events);
 });
 
-/* ---------- keep existing Search & Surprise behavior ---------- */
-document.getElementById("searchBtn").addEventListener("click", async () => {
+/* ---------- Search & Surprise ---------- */
+attachIfExists("searchBtn", async () => {
   const q = encodeURIComponent(document.getElementById("searchInput").value.trim());
-  const start = document.getElementById("startDate").value; 
-  const end = document.getElementById("endDate").value;     
+  const start = document.getElementById("startDate").value;
+  const end = document.getElementById("endDate").value;
   const maxDist = document.getElementById("distanceRange").value;
 
   const url = `/events/search?name=${q}&startDate=${start}&endDate=${end}&maxDistance=${maxDist}`;
-
   const events = await fetchEventsFromEndpoint(url);
-
   populateTable(events);
   renderBest(events);
 });
 
-
-document.getElementById("surpriseBtn").addEventListener("click", async () => {
+attachIfExists("surpriseBtn", async () => {
   const events = await fetchEventsFromEndpoint("/events/recommendations");
   populateTable(events);
   renderBest(events);
 });
 
-/* ---------- Utilities ---------- */
+/* ---------------- Map / Leaflet integration ---------------- */
+let map = null;
+let markersLayer = null;
 
+function initMapIfNeeded() {
+  if (map) return;
+  if (typeof L === "undefined") {
+    console.warn("Leaflet (L) not found. Make sure leaflet.js is loaded before script.js");
+    return;
+  }
+  map = L.map('map', { zoomControl: true });
+  map.setView([39.5, -98.35], 4);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+  markersLayer = L.layerGroup().addTo(map);
+}
+
+function clearMapMarkers() {
+  if (!markersLayer) return;
+  markersLayer.clearLayers();
+}
+
+function showTopListingsOnMap(listings = [], venueLatLng = null) {
+  initMapIfNeeded();
+  if (!map) return;
+  clearMapMarkers();
+
+  const bounds = [];
+
+  listings.forEach(l => {
+    const lat = Number(l.latitude);
+    const lng = Number(l.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+    const popup = `
+      <div>
+        <strong>Listing ${escapeHtml(String(l.listing_id))}</strong><br/>
+        Price/night: $${Number(l.price_per_night).toFixed(2)}<br/>
+        Distance: ${Number(l.distance).toFixed(2)} mi<br/>
+        Total: $${Number(l.total_cost).toFixed(2)}
+      </div>
+    `;
+    const m = L.marker([lat, lng]).bindPopup(popup);
+    markersLayer.addLayer(m);
+    bounds.push([lat, lng]);
+  });
+
+  if (venueLatLng && Number.isFinite(venueLatLng[0]) && Number.isFinite(venueLatLng[1])) {
+    bounds.push(venueLatLng);
+    const venueMarker = L.circleMarker(venueLatLng, { radius: 7, color: '#1a73e8' }).bindPopup("<strong>Venue</strong>");
+    markersLayer.addLayer(venueMarker);
+  }
+
+  if (bounds.length) {
+    map.fitBounds(bounds, { padding: [40, 40] });
+  } else if (venueLatLng) {
+    map.setView(venueLatLng, 12);
+  }
+}
+
+/* Fetch top-5 listings for the given normalized event object and show on map */
+async function fetchAndShowTopListingsForEvent(eventObj) {
+  if (!eventObj || !eventObj.id) return;
+  try {
+    const url = `${backendURL}/events/${eventObj.id}/top-listings`;
+    console.log("[map] fetch", url);
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.error("[map] fetch failed", res.status);
+      return;
+    }
+    const listings = await res.json();
+    const venueLatLng = (Number.isFinite(eventObj.venue_lat) && Number.isFinite(eventObj.venue_lng))
+      ? [eventObj.venue_lat, eventObj.venue_lng]
+      : null;
+    showTopListingsOnMap(listings, venueLatLng);
+  } catch (err) {
+    console.error("[map] error", err);
+  }
+}
+
+/* ---------- Utilities ---------- */
 function escapeHtml(str) {
   return String(str || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }

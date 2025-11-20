@@ -210,6 +210,8 @@ app.get("/events/search", (req, res) => {
       E.name AS event_name,
       E.date,
       V.venue_name,
+      V.latitude AS venue_lat,    
+       V.longitude AS venue_lng,
       C.city_name,
       C.state,
       N.distance,
@@ -261,6 +263,37 @@ app.get("/events/search", (req, res) => {
     res.json(results);
   });
 });
+
+// GET /events/:eventId/top-listings (MAP)
+app.get("/events/:eventId/top-listings", (req, res) => {
+  const eventId = Number(req.params.eventId);
+  if (!Number.isFinite(eventId)) return res.status(400).json({ error: "Invalid event id" });
+
+  const query = `
+    SELECT 
+      N.listing_id,
+      A.latitude,
+      A.longitude,
+      A.price_per_night,
+      N.distance,
+      N.total_cost
+    FROM Nearby N
+    JOIN AirbnbListing A ON N.listing_id = A.listing_id
+    WHERE N.event_id = ?
+      AND A.availability_365 > 0
+    ORDER BY N.total_cost ASC
+    LIMIT 5;
+  `;
+
+  db.query(query, [eventId], (err, results) => {
+    if (err) {
+      console.error("Error fetching top listings:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    res.json(results);
+  });
+});
+
 
 
 app.listen(5000, () => console.log("backend running on http://localhost:5000"));
