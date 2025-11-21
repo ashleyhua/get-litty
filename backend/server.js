@@ -57,15 +57,13 @@ app.get("/events/cheapest", (req, res) => {
       e.name AS event_name,
       c.city_name,
       c.state,
-      MIN(A.price_per_night + E.ticket_price) AS cheapest_total_cost
+      MIN(n.total_cost) AS cheapest_total_cost
     FROM Event e
     JOIN Venue v ON e.venue_id = v.venue_id
     JOIN Nearby n ON e.event_id = n.event_id
     JOIN AirbnbListing a ON n.listing_id = a.listing_id
     JOIN City c ON v.city_id = c.city_id
     WHERE n.distance <= 1
-      AND A.price_per_night IS NOT NULL
-      AND E.ticket_price IS NOT NULL
     GROUP BY e.event_id, e.name, c.city_name, c.state
     ORDER BY cheapest_total_cost ASC
     LIMIT 15;
@@ -85,15 +83,12 @@ app.get("/events/illinois-cheapest", (req, res) => {
       C.city_name,
       C.state,
       E.date,
-      MIN(A.price_per_night + E.ticket_price) AS cheapest_total_cost
+      MIN(N.total_cost) AS cheapest_total_cost
     FROM Event E
     JOIN Venue V ON E.venue_id = V.venue_id
     JOIN City C ON V.city_id = C.city_id
     JOIN Nearby N ON E.event_id = N.event_id
-    JOIN AirbnbListing A ON N.listing_id = A.listing_id
     WHERE C.state = 'Illinois'
-      AND A.price_per_night IS NOT NULL
-      AND E.ticket_price IS NOT NULL
     GROUP BY E.event_id, C.city_name, C.state, E.date, E.name
     ORDER BY cheapest_total_cost ASC
     LIMIT 15;
@@ -122,8 +117,6 @@ app.get("/events/most-availability", (req, res) => {
     JOIN AirbnbListing A ON N.listing_id = A.listing_id
     WHERE N.distance <= 5
       AND A.availability_365 > 0
-      AND A.price_per_night IS NOT NULL
-      AND N.distance IS NOT NULL
     GROUP BY E.event_id, E.name, C.city_name, C.state
     ORDER BY num_available_listings DESC, avg_price_per_night ASC
     LIMIT 15;
@@ -155,7 +148,6 @@ app.get("/events/chicago-below-avg", (req, res) => {
     WHERE C.city_name = 'Chicago'
       AND N.distance <= 1
       AND A.availability_365 > 0
-      AND A.price_per_night IS NOT NULL
     GROUP BY E.event_id, E.name, C.city_name, C.state, E.date
     HAVING MIN(A.price_per_night) < (
         SELECT AVG(A2.price_per_night)
@@ -166,7 +158,6 @@ app.get("/events/chicago-below-avg", (req, res) => {
         JOIN City C2 ON V2.city_id = C2.city_id
         WHERE C2.city_name = 'Chicago'
           AND N2.distance <= 1
-          AND A2.price_per_night IS NOT NULL
     )
     ORDER BY cheapest_airbnb_price ASC
     LIMIT 15;
