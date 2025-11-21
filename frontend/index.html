@@ -11,7 +11,7 @@
   <div class="container">
     <header>
       <h1>GetLitty 🎵</h1>
-      <p class="muted">Find the cheapest Airbnb to see your favorite events!</p>
+      <p class="muted">Find the cheapest airbnb to see your favorite events!</p>
     </header>
 
     <section class="controls">
@@ -30,28 +30,30 @@
         <button id="surpriseBtn">Surprise me 🎲</button>
       </div>
 
+      <!-- ADDED: Buttons to run each of the 4 SQL queries for demo/checkpoint -->
       <div class="query-buttons" style="margin-top:10px;">
         <button id="q1Btn">Q1 — Cheapest Airbnb per Event (≤1 mi)</button>
         <button id="q2Btn">Q2 — Top Cheap in Illinois</button>
         <button id="q3Btn">Q3 — Events with Most Available Listings (≤5 mi)</button>
         <button id="q4Btn">Q4 — Chicago Concerts Below Avg Lodging</button>
       </div>
+      <!-- END ADDED -->
     </section>
 
     <section id="bestPanel" class="best-panel" style="display:none"></section>
 
     <section class="results">
       <div class="left">
-        <h3>Search / Surprise Me Results</h3>
+        <h3>Results</h3>
         <table id="resultsTable">
           <thead>
             <tr>
-              <th>#</th>
-              <th>Event</th> 
-              <th>City</th>
-              <th>Date</th>
-              <th>Venue</th>
-              <th>Distance (mi)</th>
+              <th> # </th>
+              <th> Event </th> 
+              <th> City </th>
+              <th> Date </th>
+              <th> Venue </th>
+              <th> Distance (mi) </th>
               <th>Avg Airbnb ($)</th>
             </tr>
           </thead>
@@ -66,86 +68,9 @@
       </div>
     </section>
 
-    <!-- Q1–Q4 Tables (initially hidden) -->
-    <section class="query-tables">
-      <div id="q1Container" class="query-table-container" style="display:none">
-        <h3>Q1 — Cheapest Airbnb per Event (≤1 mi)</h3>
-        <table id="q1Table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Event</th>
-              <th>City</th>
-              <th>Date</th>
-              <th>Venue</th>
-              <th>Distance (mi)</th>
-              <th>Avg Airbnb ($)</th>
-              <th>Estimated Total ($)</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
-      <div id="q2Container" class="query-table-container" style="display:none">
-        <h3>Q2 — Top Cheap in Illinois</h3>
-        <table id="q2Table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Event</th>
-              <th>City</th>
-              <th>Date</th>
-              <th>Venue</th>
-              <th>Distance (mi)</th>
-              <th>Avg Airbnb ($)</th>
-              <th>Estimated Total ($)</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
-      <div id="q3Container" class="query-table-container" style="display:none">
-        <h3>Q3 — Events with Most Available Listings (≤5 mi)</h3>
-        <table id="q3Table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Event</th>
-              <th>City</th>
-              <th>Date</th>
-              <th>Venue</th>
-              <th>Available Listings</th>
-              <th>Avg Airbnb ($)</th>
-              <th>Closest Listing Distance (mi)</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
-      <div id="q4Container" class="query-table-container" style="display:none">
-        <h3>Q4 — Chicago Concerts Below Avg Lodging</h3>
-        <table id="q4Table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Event</th>
-              <th>City</th>
-              <th>Date</th>
-              <th>Venue</th>
-              <th>Distance (mi)</th>
-              <th>Avg Airbnb ($)</th>
-              <th>Estimated Total ($)</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-
-    <footer></footer>
+    <footer>
+      
+    </footer>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
