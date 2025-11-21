@@ -74,6 +74,13 @@ function populateTable(events, queryType = 'default') {
   const safe = v => (v === null || v === undefined ? "" : v);
   const fmtMoney = n => (Number.isFinite(n) ? `$${n.toFixed(2)}` : "$0.00");
   const fmtDist = n => (Number.isFinite(n) ? n.toFixed(1) : "0.0");
+  const fmtDate = d => {
+    if (!d) return "";
+    if (typeof d === "string" && d.includes("T")) {
+      return d.split("T")[0];
+    }
+    return d;
+  };
 
   // Query 1: Cheapest per event
   if (queryType === 'q1') {
@@ -116,7 +123,7 @@ function populateTable(events, queryType = 'default') {
         <td>${escapeHtml(safe(e.event_name))}</td>
         <td>${escapeHtml(safe(e.city_name))}</td>
         <td>${escapeHtml(safe(e.state))}</td>
-        <td>${escapeHtml(safe(e.date))}</td>
+        <td>${escapeHtml(fmtDate(e.date))}</td>
         <td style="text-align:right">${fmtMoney(e.cheapest_total_cost)}</td>
       `;
       tbody.appendChild(row);
@@ -168,7 +175,7 @@ function populateTable(events, queryType = 'default') {
         <td>${escapeHtml(safe(e.event_name))}</td>
         <td>${escapeHtml(safe(e.city_name))}</td>
         <td>${escapeHtml(safe(e.state))}</td>
-        <td>${escapeHtml(safe(e.date))}</td>
+        <td>${escapeHtml(fmtDate(e.date))}</td>
         <td style="text-align:right">${fmtMoney(e.cheapest_airbnb_price)}</td>
       `;
       tbody.appendChild(row);
@@ -249,34 +256,34 @@ function attachIfExists(id, handler) {
 
 /* ---------- Query buttons ---------- */
 attachIfExists("q1Btn", async () => {
-  const events = await fetchEventsFromEndpoint("/events/cheapest", false); // Don't normalize
+  const events = await fetchEventsFromEndpoint("/events/cheapest", false);
   populateTable(events, 'q1');
   renderBest(events);
   clearMapMarkers();
 });
 
 attachIfExists("q2Btn", async () => {
-  const events = await fetchEventsFromEndpoint("/events/illinois-cheapest", false); // Don't normalize
+  const events = await fetchEventsFromEndpoint("/events/illinois-cheapest", false);
   populateTable(events, 'q2');
   renderBest(events);
   clearMapMarkers();
 });
 
 attachIfExists("q3Btn", async () => {
-  const events = await fetchEventsFromEndpoint("/events/most-availability", false); // Don't normalize
+  const events = await fetchEventsFromEndpoint("/events/most-availability", false);
   populateTable(events, 'q3');
   renderBest(events);
   clearMapMarkers();
 });
 
 attachIfExists("q4Btn", async () => {
-  const events = await fetchEventsFromEndpoint("/events/chicago-below-avg", false); // Don't normalize
+  const events = await fetchEventsFromEndpoint("/events/chicago-below-avg", false);
   populateTable(events, 'q4');
   renderBest(events);
   clearMapMarkers();
 });
 
-/* ---------- Search & Surprise (these DO normalize) ---------- */
+/* ---------- Search & Surprise ---------- */
 attachIfExists("searchBtn", async () => {
   const q = encodeURIComponent(document.getElementById("searchInput").value.trim());
   const start = document.getElementById("startDate").value;
@@ -284,7 +291,7 @@ attachIfExists("searchBtn", async () => {
   const maxDist = document.getElementById("distanceRange").value;
 
   const url = `/events/search?name=${q}&startDate=${start}&endDate=${end}&maxDistance=${maxDist}`;
-  const events = await fetchEventsFromEndpoint(url, true); // Normalize
+  const events = await fetchEventsFromEndpoint(url, true);
   populateTable(events, 'default');
   renderBest(events);
   
@@ -295,7 +302,7 @@ attachIfExists("searchBtn", async () => {
 });
 
 attachIfExists("surpriseBtn", async () => {
-  const events = await fetchEventsFromEndpoint("/events/recommendations", true); // Normalize
+  const events = await fetchEventsFromEndpoint("/events/recommendations", true);
   populateTable(events, 'default');
   renderBest(events);
   clearMapMarkers();
@@ -307,7 +314,6 @@ let markersLayer = null;
 
 /**
  * Initialize map if Leaflet is available
- * ADDED: console logs for debugging
  */
 function initMapIfNeeded() {
   if (map) return;
@@ -337,7 +343,6 @@ function clearMapMarkers() {
 
 /**
  * Show top listings on the Leaflet map and fit bounds.
- * ADDED: call invalidateSize() shortly after fitBounds to ensure tiles/markers render properly.
  */
 function showTopListingsOnMap(listings = [], venueLatLng = null) {
   initMapIfNeeded();
@@ -380,7 +385,6 @@ function showTopListingsOnMap(listings = [], venueLatLng = null) {
     map.setView(venueLatLng, 12);
   }
 
-  // ADDED: invalidateSize after a short timeout to fix rendering when the container has changed
   if (map && typeof map.invalidateSize === "function") {
     setTimeout(() => {
       try {
@@ -397,7 +401,6 @@ function showTopListingsOnMap(listings = [], venueLatLng = null) {
 async function fetchAndShowTopListingsForEvent(eventObj) {
   if (!eventObj || !eventObj.id) return;
   try {
-    // ensure map is initialized (ADDED)
     initMapIfNeeded();
 
     const url = `${backendURL}/events/${eventObj.id}/top-listings`;
@@ -409,7 +412,6 @@ async function fetchAndShowTopListingsForEvent(eventObj) {
     }
     const listings = await res.json();
 
-    // map the returned listing rows to the expected shape (defensive)
     const normalizedListings = (Array.isArray(listings) ? listings : []).map(l => ({
       listing_id: l.listing_id ?? l.id ?? "",
       latitude: Number(l.latitude ?? l.lat ?? l.lat_dd ?? NaN),
@@ -444,7 +446,7 @@ if (distRange && distVal) {
   distRange.addEventListener("input", () => (distVal.textContent = distRange.value));
 }
 
-/* ---------------- ADDED: init map as soon as DOM is ready (fix timing issues) ---------------- */
+/* Initialize map on DOM ready */
 document.addEventListener("DOMContentLoaded", () => {
   try {
     initMapIfNeeded();
