@@ -1,17 +1,13 @@
-// script.js — dynamic table + search + surprise + query buttons + map placeholder
 const backendURL = "http://localhost:5000";
 
-/* ---------------- Generic fetch + normalizer ---------------- */
 async function fetchEventsFromEndpoint(path) {
   const url = `${backendURL}${path}`;
   try {
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return [];
     const data = await res.json();
-    if (!Array.isArray(data)) return [];
-    return data.map(normalizeRow);
-  } catch (err) {
-    console.error("[fetch] error", err);
+    return Array.isArray(data) ? data.map(normalizeRow) : [];
+  } catch {
     return [];
   }
 }
@@ -23,100 +19,88 @@ function normalizeRow(e) {
     venue_name: e.venue_name ?? e.venue ?? "",
     city_name: e.city_name ?? e.city ?? "",
     state: e.state ?? "",
-    date: e.date ? e.date.split?.("T")[0] ?? e.date : "",
-    distance: Number(e.distance ?? e.distance_mi ?? 0),
-    avg_airbnb: Number(e.price_per_night ?? e.avg_price ?? e.avg_airbnb ?? 0),
-    ticket_price: Number(e.ticket_price ?? e.price ?? 0),
+    date: e.date?.split?.("T")[0] ?? e.date ?? "",
+    distance: Number(e.distance ?? 0),
+    avg_airbnb: Number(e.price_per_night ?? e.avg_price ?? 0),
+    ticket_price: Number(e.ticket_price ?? 0),
     estimated_total_cost: Number(e.estimated_total_cost ?? e.cheapest_total_cost ?? 0),
-    venue_lat: Number(e.venue_lat ?? NaN),
-    venue_lng: Number(e.venue_lng ?? NaN)
+    num_available_listings: Number(e.num_available_listings ?? 0),
+    avg_price_per_night: Number(e.avg_price_per_night ?? 0),
+    closest_listing_distance: Number(e.closest_listing_distance ?? 0)
   };
 }
 
-/* ---------------- Dynamic table rendering ---------------- */
+/* ---------- Search / Surprise Me table ---------- */
 function populateTable(events) {
-  const table = document.getElementById("resultsTable");
-  const thead = table.querySelector("thead");
-  const tbody = table.querySelector("tbody");
+  const tbody = document.querySelector("#resultsTable tbody");
   tbody.innerHTML = "";
-
-  if (!events || events.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="10" class="muted">No results found</td></tr>`;
+  if (!events.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="muted">No results found</td></tr>`;
     return;
   }
-
-  // determine extra columns dynamically
-  const first = events[0];
-  const extraKeys = Object.keys(first).filter(k =>
-    !["id","name","venue_name","city_name","state","date","distance","avg_airbnb"].includes(k)
-  );
-
-  thead.innerHTML = "<tr>" + [
-    "<th>#</th>",
-    "<th>Event</th>",
-    "<th>City</th>",
-    "<th>Date</th>",
-    "<th>Venue</th>",
-    "<th>Distance (mi)</th>",
-    "<th>Avg Airbnb ($)</th>",
-    ...extraKeys.map(k => `<th>${k.replace(/_/g," ")}</th>`)
-  ].join("") + "</tr>";
-
   events.forEach((e, idx) => {
     const row = document.createElement("tr");
-    const safe = v => v == null ? "" : v;
-    const fmtMoney = n => Number.isFinite(n) ? `$${n.toFixed(2)}` : "$0.00";
-    const fmtDist = n => Number.isFinite(n) ? n.toFixed(1) : "0.0";
-
     row.innerHTML = `
       <td>${idx+1}</td>
-      <td>${escapeHtml(safe(e.name))}</td>
-      <td>${escapeHtml(safe(e.city_name))}, ${escapeHtml(safe(e.state))}</td>
-      <td>${escapeHtml(safe(e.date))}</td>
-      <td>${escapeHtml(safe(e.venue_name))}</td>
-      <td style="text-align:right">${fmtDist(e.distance)}</td>
-      <td style="text-align:right">${fmtMoney(e.avg_airbnb)}</td>
-      ${extraKeys.map(k => {
-        let val = e[k];
-        if (["ticket_price","estimated_total_cost","closest_listing_distance","avg_price","avg_airbnb"].includes(k)) val = fmtMoney(val);
-        if (["distance","closest_listing_distance"].includes(k)) val = fmtDist(val);
-        return `<td style="text-align:right">${escapeHtml(val)}</td>`;
-      }).join("")}
+      <td>${escapeHtml(e.name)}</td>
+      <td>${escapeHtml(e.city_name)}, ${escapeHtml(e.state)}</td>
+      <td>${escapeHtml(e.date)}</td>
+      <td>${escapeHtml(e.venue_name)}</td>
+      <td style="text-align:right">${e.distance.toFixed(1)}</td>
+      <td style="text-align:right">$${e.avg_airbnb.toFixed(2)}</td>
     `;
     tbody.appendChild(row);
   });
 }
 
-/* ---------------- Best panel ---------------- */
-function renderBest(events) {
-  const bestPanel = document.getElementById("bestPanel");
-  if (!events || events.length === 0) { bestPanel.style.display = "none"; return; }
-  const b = events[0];
-  bestPanel.style.display = "block";
+/* ---------- Q1–Q4 tables ---------- */
+function populateQueryTable(events, tableId) {
+  const container = document.getElementById(tableId + "Container");
+  if (!container) return;
 
-  let extras = [];
-  if (Number.isFinite(b.distance)) extras.push(`Distance: ${b.distance.toFixed(1)} mi`);
-  if (Number.isFinite(b.ticket_price) && b.ticket_price>0) extras.push(`Ticket: $${b.ticket_price.toFixed(2)}`);
-  if (Number.isFinite(b.avg_airbnb)) extras.push(`Airbnb: $${b.avg_airbnb.toFixed(2)}`);
-  if (Number.isFinite(b.estimated_total_cost) && b.estimated_total_cost>0) extras.push(`Total: $${b.estimated_total_cost.toFixed(2)}`);
+  // Hide all other Q1–Q4 containers
+  document.querySelectorAll(".query-table-container").forEach(div => div.style.display = "none");
 
-  bestPanel.innerHTML = `
-    <strong>Best Option</strong>
-    <div>${escapeHtml(b.name)} — ${escapeHtml(b.city_name)}, ${escapeHtml(b.state)} on ${escapeHtml(b.date)}</div>
-    <div>${escapeHtml(extras.join(" • "))}</div>
-  `;
+  // Show the current one
+  container.style.display = "block";
+
+  const table = document.getElementById(tableId);
+  const tbody = table.querySelector("tbody");
+  tbody.innerHTML = "";
+
+  if (!events.length) {
+    tbody.innerHTML = `<tr><td colspan="${table.querySelectorAll('th').length}" class="muted">No results found</td></tr>`;
+    return;
+  }
+
+  events.forEach((e, idx) => {
+    const row = document.createElement("tr");
+    let html = `
+      <td>${idx+1}</td>
+      <td>${escapeHtml(e.name)}</td>
+      <td>${escapeHtml(e.city_name)}, ${escapeHtml(e.state)}</td>
+      <td>${escapeHtml(e.date)}</td>
+      <td>${escapeHtml(e.venue_name)}</td>
+    `;
+    if (tableId === "q3Table") {
+      html += `
+        <td style="text-align:right">${e.num_available_listings}</td>
+        <td style="text-align:right">$${e.avg_price_per_night.toFixed(2)}</td>
+        <td style="text-align:right">${e.closest_listing_distance.toFixed(1)}</td>
+      `;
+    } else {
+      html += `
+        <td style="text-align:right">${e.distance.toFixed(1)}</td>
+        <td style="text-align:right">$${e.avg_airbnb.toFixed(2)}</td>
+        <td style="text-align:right">$${e.estimated_total_cost.toFixed(2)}</td>
+      `;
+    }
+    row.innerHTML = html;
+    tbody.appendChild(row);
+  });
 }
 
-/* ---------- Utilities ---------- */
-function escapeHtml(str) {
-  return String(str || "").replace(/[&<>"']/g, c =>
-    ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])
-  );
-}
-
-/* ---------- Attach buttons ---------- */
-function attachIfExists(id, handler) { const el=document.getElementById(id); if(el) el.addEventListener("click", handler); }
-
+/* ---------- Search / Surprise Me ---------- */
 attachIfExists("searchBtn", async () => {
   const q = encodeURIComponent(document.getElementById("searchInput").value.trim());
   const start = document.getElementById("startDate").value;
@@ -125,20 +109,47 @@ attachIfExists("searchBtn", async () => {
   const url = `/events/search?name=${q}&startDate=${start}&endDate=${end}&maxDistance=${maxDist}`;
   const events = await fetchEventsFromEndpoint(url);
   populateTable(events);
-  renderBest(events);
 });
 
 attachIfExists("surpriseBtn", async () => {
   const events = await fetchEventsFromEndpoint("/events/recommendations");
   populateTable(events);
-  renderBest(events);
 });
 
-attachIfExists("q1Btn", async () => { const events = await fetchEventsFromEndpoint("/events/cheapest"); populateTable(events); renderBest(events); });
-attachIfExists("q2Btn", async () => { const events = await fetchEventsFromEndpoint("/events/illinois-cheapest"); populateTable(events); renderBest(events); });
-attachIfExists("q3Btn", async () => { const events = await fetchEventsFromEndpoint("/events/most-availability"); populateTable(events); renderBest(events); });
-attachIfExists("q4Btn", async () => { const events = await fetchEventsFromEndpoint("/events/chicago-below-avg"); populateTable(events); renderBest(events); });
+/* ---------- Q1–Q4 buttons ---------- */
+attachIfExists("q1Btn", async () => {
+  const events = await fetchEventsFromEndpoint("/events/cheapest");
+  populateQueryTable(events, "q1Table");
+});
+attachIfExists("q2Btn", async () => {
+  const events = await fetchEventsFromEndpoint("/events/illinois-cheapest");
+  populateQueryTable(events, "q2Table");
+});
+attachIfExists("q3Btn", async () => {
+  const events = await fetchEventsFromEndpoint("/events/most-availability");
+  populateQueryTable(events, "q3Table");
+});
+attachIfExists("q4Btn", async () => {
+  const events = await fetchEventsFromEndpoint("/events/chicago-below-avg");
+  populateQueryTable(events, "q4Table");
+});
 
-/* ---------- Distance range UI ---------- */
-const distRange=document.getElementById("distanceRange"), distVal=document.getElementById("distVal");
-if(distRange && distVal){ distVal.textContent=distRange.value; distRange.addEventListener("input",()=>distVal.textContent=distRange.value); }
+/* ---------- Helpers ---------- */
+function attachIfExists(id, handler) {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener("click", handler);
+}
+
+function escapeHtml(str) {
+  return String(str || "").replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
+  );
+}
+
+/* ---------- Distance UI ---------- */
+const distRange = document.getElementById("distanceRange");
+const distVal = document.getElementById("distVal");
+if (distRange && distVal) {
+  distVal.textContent = distRange.value;
+  distRange.addEventListener("input", () => (distVal.textContent = distRange.value));
+}
