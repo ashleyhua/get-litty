@@ -53,27 +53,20 @@ app.get("/events/recommendations", (req, res) => {
 app.get("/events/cheapest", (req, res) => {
   const query = `
     SELECT 
-      E.event_id,
-      E.name AS event_name,
-      E.date,
-      V.venue_name,
-      C.city_name,
-      C.state,
-      1 AS distance,
-      A.price_per_night AS avg_airbnb,
-      MIN(N.total_cost) AS cheapest_total_cost,
-      E.ticket_price
-    FROM Event E
-    JOIN Venue V ON E.venue_id = V.venue_id
-    JOIN City C ON V.city_id = C.city_id
-    JOIN Nearby N ON E.event_id = N.event_id
-    JOIN AirbnbListing A ON N.listing_id = A.listing_id
-    WHERE N.distance <= 1
-    GROUP BY 
-      E.event_id, E.name, E.date, V.venue_name, 
-      C.city_name, C.state, A.price_per_night, E.ticket_price
+      e.event_id,
+      e.name AS event_name,
+      c.city_name,
+      c.state,
+      MIN(n.total_cost) AS cheapest_total_cost
+    FROM Event e
+    JOIN Venue v ON e.venue_id = v.venue_id
+    JOIN Nearby n ON e.event_id = n.event_id
+    JOIN AirbnbListing a ON n.listing_id = a.listing_id
+    JOIN City c ON v.city_id = c.city_id
+    WHERE n.distance <= 1
+    GROUP BY e.event_id, e.name, c.city_name, c.state
     ORDER BY cheapest_total_cost ASC
-    LIMIT 25;
+    LIMIT 15;
   `;
   db.query(query, (err, results) => {
     if (err) return res.status(500).json(err);
@@ -87,25 +80,18 @@ app.get("/events/illinois-cheapest", (req, res) => {
     SELECT 
       E.event_id,
       E.name AS event_name,
-      E.date,
-      V.venue_name,
       C.city_name,
       C.state,
-      MIN(N.distance) AS distance,
-      MIN(A.price_per_night) AS avg_airbnb,
-      MIN(N.total_cost) AS cheapest_total_cost,
-      E.ticket_price
+      E.date,
+      MIN(N.total_cost) AS cheapest_total_cost
     FROM Event E
     JOIN Venue V ON E.venue_id = V.venue_id
     JOIN City C ON V.city_id = C.city_id
     JOIN Nearby N ON E.event_id = N.event_id
-    JOIN AirbnbListing A ON N.listing_id = A.listing_id
-    WHERE C.state = 'IL'
-    GROUP BY 
-      E.event_id, E.name, E.date, V.venue_name,
-      C.city_name, C.state, E.ticket_price
+    WHERE C.state = 'Illinois'
+    GROUP BY E.event_id, C.city_name, C.state, E.date, E.name
     ORDER BY cheapest_total_cost ASC
-    LIMIT 25;
+    LIMIT 15;
   `;
   db.query(query, (err, results) => {
     if (err) return res.status(500).json(err);
@@ -114,42 +100,35 @@ app.get("/events/illinois-cheapest", (req, res) => {
 });
 
 // ENDPOINT #3: Events with most available Airbnb listings (within 5 miles)
-app.get("/events/most-availability", async (req, res) => {
-  try {
-    const [rows] = await db.query(
-      `SELECT 
-          E.event_id, 
-          E.name AS event_name, 
-          C.city_name, 
-          C.state, 
-          COUNT(A.listing_id) AS num_available_listings, 
-          ROUND(AVG(A.price_per_night), 2) AS avg_price_per_night, 
-          MIN(N.distance) AS closest_listing_distance
-        FROM Event E
-        JOIN Venue V ON E.venue_id = V.venue_id
-        JOIN City C ON V.city_id = C.city_id
-        JOIN Nearby N ON E.event_id = N.event_id
-        JOIN AirbnbListing A ON N.listing_id = A.listing_id
-        WHERE N.distance <= 5 
-          AND A.availability_365 > 0
-        GROUP BY 
-          E.event_id, 
-          E.name, 
-          C.city_name, 
-          C.state
-        ORDER BY 
-          num_available_listings DESC, 
-          avg_price_per_night ASC
-        LIMIT 15;`
-    );
-
-    res.json(rows);
-  } catch (err) {
-    console.error("Error fetching most availability events:", err);
-    res.status(500).json({ error: "Database error" });
-  }
+app.get("/events/most-availability", (req, res) => {
+  const query = `
+    SELECT 
+      E.event_id,
+      E.name AS event_name,
+      C.city_name,
+      C.state,
+      COUNT(A.listing_id) AS num_available_listings,
+      ROUND(AVG(A.price_per_night), 2) AS avg_price_per_night,
+      MIN(N.distance) AS closest_listing_distance
+    FROM Event E
+    JOIN Venue V ON E.venue_id = V.venue_id
+    JOIN City C ON V.city_id = C.city_id
+    JOIN Nearby N ON E.event_id = N.event_id
+    JOIN AirbnbListing A ON N.listing_id = A.listing_id
+    WHERE N.distance <= 5
+      AND A.availability_365 > 0
+    GROUP BY E.event_id, E.name, C.city_name, C.state
+    ORDER BY num_available_listings DESC, avg_price_per_night ASC
+    LIMIT 15;
+  `;
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("Error fetching most availability events:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    res.json(results);
+  });
 });
-
 
 // ENDPOINT #4: Chicago concerts with below-avg lodging
 app.get("/events/chicago-below-avg", (req, res) => {
@@ -157,14 +136,10 @@ app.get("/events/chicago-below-avg", (req, res) => {
     SELECT 
       E.event_id,
       E.name AS event_name,
-      E.date,
-      V.venue_name,
       C.city_name,
       C.state,
-      MIN(N.distance) AS distance,
-      MIN(A.price_per_night) AS avg_airbnb,
-      MIN(A.price_per_night + E.ticket_price) AS estimated_total_cost,
-      E.ticket_price
+      E.date,
+      MIN(A.price_per_night) AS cheapest_airbnb_price
     FROM Event E
     JOIN Venue V ON E.venue_id = V.venue_id
     JOIN City C ON V.city_id = C.city_id
@@ -173,9 +148,7 @@ app.get("/events/chicago-below-avg", (req, res) => {
     WHERE C.city_name = 'Chicago'
       AND N.distance <= 1
       AND A.availability_365 > 0
-    GROUP BY 
-      E.event_id, E.name, E.date, V.venue_name,
-      C.city_name, C.state, E.ticket_price
+    GROUP BY E.event_id, E.name, C.city_name, C.state, E.date
     HAVING MIN(A.price_per_night) < (
         SELECT AVG(A2.price_per_night)
         FROM AirbnbListing A2
@@ -186,8 +159,8 @@ app.get("/events/chicago-below-avg", (req, res) => {
         WHERE C2.city_name = 'Chicago'
           AND N2.distance <= 1
     )
-    ORDER BY estimated_total_cost ASC
-    LIMIT 25;
+    ORDER BY cheapest_airbnb_price ASC
+    LIMIT 15;
   `;
   db.query(query, (err, results) => {
     if (err) return res.status(500).json(err);
