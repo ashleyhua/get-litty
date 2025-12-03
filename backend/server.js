@@ -224,7 +224,7 @@ app.get("/events/search", (req, res) => {
   }
 
   query += `
-    ORDER BY estimated_total_cost ASC
+    ORDER BY estimated_total_cost ASC, N.distance ASC
     LIMIT 10;
   `;
 
