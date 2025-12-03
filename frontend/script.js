@@ -272,28 +272,24 @@ function attachIfExists(id, handler) {
 attachIfExists("q1Btn", async () => {
   const events = await fetchEventsFromEndpoint("/events/cheapest", false);
   populateTable(events, 'q1');
-  renderBest(events);
   clearMapMarkers();
 });
 
 attachIfExists("q2Btn", async () => {
   const events = await fetchEventsFromEndpoint("/events/illinois-cheapest", false);
   populateTable(events, 'q2');
-  renderBest(events);
   clearMapMarkers();
 });
 
 attachIfExists("q3Btn", async () => {
   const events = await fetchEventsFromEndpoint("/events/most-availability", false);
   populateTable(events, 'q3');
-  renderBest(events);
   clearMapMarkers();
 });
 
 attachIfExists("q4Btn", async () => {
   const events = await fetchEventsFromEndpoint("/events/chicago-below-avg", false);
   populateTable(events, 'q4');
-  renderBest(events);
   clearMapMarkers();
 });
 
