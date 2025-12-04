@@ -456,3 +456,131 @@ document.addEventListener("DOMContentLoaded", () => {
     console.error("[map] DOMContentLoaded init error", err);
   }
 });
+
+// ========== USER EVENTS FUNCTIONALITY ==========
+const USER_ID = 1; // Single user for school project
+
+// Add event to user's list
+attachIfExists("addEventBtn", async () => {
+  const eventId = document.getElementById("addEventId").value.trim();
+  const messageEl = document.getElementById("addEventMessage");
+  
+  if (!eventId) {
+    showMessage(messageEl, "Please enter an Event ID", "error");
+    return;
+  }
+
+  try {
+    const res = await fetch(`${backendURL}/user/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: USER_ID, eventId: parseInt(eventId) })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMessage(messageEl, data.error || "Failed to add event", "error");
+      return;
+    }
+
+    showMessage(messageEl, "Event added successfully! 🎉", "success");
+    document.getElementById("addEventId").value = "";
+    
+    // Auto-refresh the events list if it's visible
+    const listEl = document.getElementById("myEventsList");
+    if (listEl.innerHTML) {
+      document.getElementById("viewEventsBtn").click();
+    }
+  } catch (err) {
+    console.error("Error adding event:", err);
+    showMessage(messageEl, "Network error. Please try again.", "error");
+  }
+});
+
+// View user's events
+attachIfExists("viewEventsBtn", async () => {
+  const listEl = document.getElementById("myEventsList");
+  listEl.innerHTML = "<p>Loading...</p>";
+
+  try {
+    const res = await fetch(`${backendURL}/user/${USER_ID}/events`);
+    
+    if (!res.ok) {
+      listEl.innerHTML = "<p class='error'>Failed to load events</p>";
+      return;
+    }
+
+    const events = await res.json();
+
+    if (!events || events.length === 0) {
+      listEl.innerHTML = "<p class='muted'>You haven't added any events yet.</p>";
+      return;
+    }
+
+    listEl.innerHTML = events.map(e => `
+      <div class="event-item">
+        <strong>${escapeHtml(e.event_name)}</strong>
+        <div class="event-details">
+          Event ID: ${e.event_id} | 
+          ${escapeHtml(e.city_name)}, ${escapeHtml(e.state)} | 
+          ${e.date ? e.date.split('T')[0] : 'No date'} | 
+          ${e.venue_name ? escapeHtml(e.venue_name) : 'No venue'} | 
+          ${e.ticket_price ? `$${Number(e.ticket_price).toFixed(2)}` : 'Price TBA'}
+        </div>
+      </div>
+    `).join("");
+  } catch (err) {
+    console.error("Error fetching events:", err);
+    listEl.innerHTML = "<p class='error'>Network error. Please try again.</p>";
+  }
+});
+
+// Remove event from user's list
+attachIfExists("removeEventBtn", async () => {
+  const eventId = document.getElementById("removeEventId").value.trim();
+  const messageEl = document.getElementById("removeEventMessage");
+  
+  if (!eventId) {
+    showMessage(messageEl, "Please enter an Event ID", "error");
+    return;
+  }
+
+  try {
+    const res = await fetch(`${backendURL}/user/events`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: USER_ID, eventId: parseInt(eventId) })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMessage(messageEl, data.error || "Failed to remove event", "error");
+      return;
+    }
+
+    showMessage(messageEl, "Event removed successfully ✓", "success");
+    document.getElementById("removeEventId").value = "";
+    
+    // Auto-refresh the events list if it's visible
+    const listEl = document.getElementById("myEventsList");
+    if (listEl.innerHTML) {
+      document.getElementById("viewEventsBtn").click();
+    }
+  } catch (err) {
+    console.error("Error removing event:", err);
+    showMessage(messageEl, "Network error. Please try again.", "error");
+  }
+});
+
+// Helper function to show messages
+function showMessage(element, text, type) {
+  element.textContent = text;
+  element.className = `message ${type}`;
+  element.style.display = "block";
+  
+  setTimeout(() => {
+    element.style.display = "none";
+  }, 5000);
+}
