@@ -12,7 +12,7 @@ const db = mysql.createConnection({
   password: "",
   database: "getlitty",
   ssl: { rejectUnauthorized: false },
-  multipleStatements: true // needed to handle multiple SELECTs from stored procedure
+  multipleStatements: true 
 });
 
 db.connect(err => {
@@ -209,25 +209,41 @@ app.get("/events/:eventId/top-listings", (req, res) => {
 // ENDPOINT: Add event to user's want-to-attend list
 app.post("/user/events", (req, res) => {
   const { userId, eventId } = req.body;
-  
+
   if (!userId || !eventId) {
     return res.status(400).json({ error: "userId and eventId are required" });
   }
 
-  const query = `INSERT INTO WantsToAttend (user_id, event_id) VALUES (?, ?)`;
-  
-  db.query(query, [userId, eventId], (err, result) => {
+  // Start a transaction so trigger is respected atomically
+  db.beginTransaction(err => {
     if (err) {
-      // Check if it's our trigger error
-      if (err.sqlMessage && err.sqlMessage.includes('already have an event')) {
-        return res.status(409).json({ 
-          error: "You already have an event scheduled on this date" 
-        });
-      }
-      console.error("Error adding event:", err);
+      console.error("Transaction start error:", err);
       return res.status(500).json({ error: "Database error" });
     }
-    res.json({ message: "Event added successfully", eventId });
+
+    const query = `INSERT INTO WantsToAttend (user_id, event_id) VALUES (?, ?)`;
+    db.query(query, [userId, eventId], (err, result) => {
+      if (err) {
+        // Rollback transaction on error
+        return db.rollback(() => {
+          if (err.sqlMessage && err.sqlMessage.includes('already have an event')) {
+            return res.status(409).json({ error: "You already have an event scheduled on this date" });
+          }
+          console.error("Error adding event:", err);
+          return res.status(500).json({ error: "Database error" });
+        });
+      }
+
+      db.commit(commitErr => {
+        if (commitErr) {
+          return db.rollback(() => {
+            console.error("Transaction commit error:", commitErr);
+            return res.status(500).json({ error: "Database error" });
+          });
+        }
+        res.json({ message: "Event added successfully", eventId });
+      });
+    });
   });
 });
 
