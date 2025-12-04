@@ -443,7 +443,7 @@ if (distRange && distVal) {
 document.addEventListener("DOMContentLoaded", () => {
   try {
     initMapIfNeeded();
-    updateEventCount();  // NEW
+    // updateEventCount(); 
     console.log("[map] DOM loaded — initMapIfNeeded called");
   } catch (err) {
     console.error("[map] DOMContentLoaded init error", err);
@@ -584,6 +584,8 @@ async function updateEventCount() {
   const countEl = document.getElementById("eventCount");
   if (!countEl) return;
 
+  countEl.style.display = "block"; // show when updating
+
   try {
     const res = await fetch(`${backendURL}/user/${USER_ID}/events`);
     if (!res.ok) {
@@ -599,3 +601,4 @@ async function updateEventCount() {
     countEl.textContent = "Error loading event count";
   }
 }
+
