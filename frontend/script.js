@@ -196,8 +196,7 @@ function populateTable(events, queryType = 'default') {
     <th>Date</th>
     <th>Venue</th>
     <th>Distance (mi)</th>
-    <th>Avg Airbnb ($)</th>
-    <th>Total Cost ($)</th>
+    <th>Airbnb ($)</th>
   `;
 
   events.forEach((e, idx) => {
@@ -208,7 +207,6 @@ function populateTable(events, queryType = 'default') {
     const venue = e.venue_name ?? e.venue ?? "";
     const distance = Number(e.distance ?? e.distance_mi ?? 0);
     const avgAirbnb = Number(e.avg_airbnb ?? e.price_per_night ?? 0);
-    const totalCost = Number(e.estimated_total_cost ?? e.cheapest_total_cost ?? 0);
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${e.event_id ?? e.id ?? ''}</td>
@@ -218,12 +216,12 @@ function populateTable(events, queryType = 'default') {
       <td>${escapeHtml(safe(venue))}</td>
       <td style="text-align:right">${fmtDist(distance)}</td>
       <td style="text-align:right">${fmtMoney(avgAirbnb)}</td>
-      <td style="text-align:right">${fmtMoney(totalCost)}</td>
     `;
     tbody.appendChild(row);
   });
 }
 }
+
 
 function renderBest(events) {
   const bestPanel = document.getElementById("bestPanel");
@@ -243,14 +241,10 @@ function renderBest(events) {
 
   let extras = [];
   const distance = Number(b.distance ?? b.closest_listing_distance ?? 0);
-  const ticketPrice = Number(b.ticket_price ?? 0);
   const airbnbPrice = Number(b.avg_airbnb ?? b.avg_price_per_night ?? b.cheapest_airbnb_price ?? 0);
-  const totalCost = Number(b.estimated_total_cost ?? b.cheapest_total_cost ?? 0);
 
   if (Number.isFinite(distance) && distance > 0) extras.push(`Distance: ${distance.toFixed(1)} mi`);
-  if (Number.isFinite(ticketPrice) && ticketPrice > 0) extras.push(`Ticket: $${ticketPrice.toFixed(2)}`);
   if (Number.isFinite(airbnbPrice) && airbnbPrice > 0) extras.push(`Airbnb: $${airbnbPrice.toFixed(2)}`);
-  if (Number.isFinite(totalCost) && totalCost > 0) extras.push(`Total: $${totalCost.toFixed(2)}`);
 
   bestPanel.innerHTML = `
     <strong>Best Option</strong>
