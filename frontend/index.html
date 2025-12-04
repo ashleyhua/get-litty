@@ -69,7 +69,32 @@
     </section>
 
     <footer>
-      
+      <section class="user-events">
+        <h2>My Events</h2>
+        
+        <!-- Add Event -->
+        <div class="user-action">
+          <h3>Add Event to Attend</h3>
+          <input id="addEventId" type="number" placeholder="Enter Event ID" />
+          <button id="addEventBtn">Add Event</button>
+          <p id="addEventMessage" class="message"></p>
+        </div>
+
+        <!-- View Events -->
+        <div class="user-action">
+          <h3>Events I'm Attending</h3>
+          <button id="viewEventsBtn">Show My Events</button>
+          <div id="myEventsList"></div>
+        </div>
+
+        <!-- Remove Event -->
+        <div class="user-action">
+          <h3>Remove Event</h3>
+          <input id="removeEventId" type="number" placeholder="Enter Event ID" />
+          <button id="removeEventBtn">Remove Event</button>
+          <p id="removeEventMessage" class="message"></p>
+        </div>
+      </section>
     </footer>
   </div>
 
@@ -77,3 +102,4 @@
   <script src="script.js"></script>
 </body>
 </html>
+

@@ -205,4 +205,86 @@ app.get("/events/:eventId/top-listings", (req, res) => {
   });
 });
 
+//TRIGGER RELATED STUFF
+// ENDPOINT: Add event to user's want-to-attend list
+app.post("/user/events", (req, res) => {
+  const { userId, eventId } = req.body;
+  
+  if (!userId || !eventId) {
+    return res.status(400).json({ error: "userId and eventId are required" });
+  }
+
+  const query = `INSERT INTO WantsToAttend (user_id, event_id) VALUES (?, ?)`;
+  
+  db.query(query, [userId, eventId], (err, result) => {
+    if (err) {
+      // Check if it's our trigger error
+      if (err.sqlMessage && err.sqlMessage.includes('already have an event')) {
+        return res.status(409).json({ 
+          error: "You already have an event scheduled on this date" 
+        });
+      }
+      console.error("Error adding event:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    res.json({ message: "Event added successfully", eventId });
+  });
+});
+
+// ENDPOINT: Get all events user wants to attend
+app.get("/user/:userId/events", (req, res) => {
+  const userId = req.params.userId;
+  
+  const query = `
+    SELECT 
+      E.event_id,
+      E.name AS event_name,
+      E.date,
+      V.venue_name,
+      C.city_name,
+      C.state,
+      E.ticket_price
+    FROM WantsToAttend W
+    JOIN Event E ON W.event_id = E.event_id
+    JOIN Venue V ON E.venue_id = V.venue_id
+    JOIN City C ON V.city_id = C.city_id
+    WHERE W.user_id = ?
+    ORDER BY E.date ASC;
+  `;
+  
+  db.query(query, [userId], (err, results) => {
+    if (err) {
+      console.error("Error fetching user events:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    res.json(results);
+  });
+});
+
+// ENDPOINT: Remove event from user's want-to-attend list
+app.delete("/user/events", (req, res) => {
+  const { userId, eventId } = req.body;
+  
+  if (!userId || !eventId) {
+    return res.status(400).json({ error: "userId and eventId are required" });
+  }
+
+  const query = `DELETE FROM WantsToAttend WHERE user_id = ? AND event_id = ?`;
+  
+  db.query(query, [userId, eventId], (err, result) => {
+    if (err) {
+      console.error("Error removing event:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Event not found in your list" });
+    }
+    
+    res.json({ message: "Event removed successfully", eventId });
+  });
+});
+
+
+
 app.listen(5000, () => console.log("backend running on http://localhost:5000"));
