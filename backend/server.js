@@ -42,7 +42,7 @@ app.get("/events/recommendations", (req, res) => {
     WHERE N.distance <= 10
       AND A.availability_365 > 0
     ORDER BY estimated_total_cost ASC
-    LIMIT 50;
+    LIMIT 10;
   `;
   db.query(query, (err, results) => {
     if (err) return res.status(500).json(err);
