@@ -443,7 +443,6 @@ if (distRange && distVal) {
 document.addEventListener("DOMContentLoaded", () => {
   try {
     initMapIfNeeded();
-    updateEventCount();  // NEW
     console.log("[map] DOM loaded — initMapIfNeeded called");
   } catch (err) {
     console.error("[map] DOMContentLoaded init error", err);
@@ -489,13 +488,15 @@ attachIfExists("addEventBtn", async () => {
     console.error("Error adding event:", err);
     showMessage(messageEl, "Network error. Please try again.", "error");
   }
-  updateEventCount();
 });
 
 // View user's events
 attachIfExists("viewEventsBtn", async () => {
   const listEl = document.getElementById("myEventsList");
+  const countEl = document.getElementById("eventCount");
+  
   listEl.innerHTML = "<p>Loading...</p>";
+  countEl.style.display = "none";
 
   try {
     const res = await fetch(`${backendURL}/user/${USER_ID}/events`);
@@ -509,9 +510,17 @@ attachIfExists("viewEventsBtn", async () => {
 
     if (!events || events.length === 0) {
       listEl.innerHTML = "<p class='muted'>You haven't added any events yet.</p>";
+      countEl.textContent = "You have 0 events scheduled";
+      countEl.style.display = "block";
       return;
     }
 
+    // Update count
+    const count = events.length;
+    countEl.textContent = `You have ${count} event${count !== 1 ? "s" : ""} scheduled`;
+    countEl.style.display = "block";
+
+    // Display events
     listEl.innerHTML = events.map(e => `
       <div class="event-item">
         <strong>${escapeHtml(e.event_name)}</strong>
@@ -566,7 +575,6 @@ attachIfExists("removeEventBtn", async () => {
     console.error("Error removing event:", err);
     showMessage(messageEl, "Network error. Please try again.", "error");
   }
-  updateEventCount();
 });
 
 // Helper function to show messages
@@ -578,24 +586,4 @@ function showMessage(element, text, type) {
   setTimeout(() => {
     element.style.display = "none";
   }, 5000);
-}
-
-async function updateEventCount() {
-  const countEl = document.getElementById("eventCount");
-  if (!countEl) return;
-
-  try {
-    const res = await fetch(`${backendURL}/user/${USER_ID}/events`);
-    if (!res.ok) {
-      countEl.textContent = "Error loading event count";
-      return;
-    }
-
-    const events = await res.json();
-    const count = events.length;
-    countEl.textContent = `You have ${count} event${count !== 1 ? "s" : ""} scheduled`;
-  } catch (err) {
-    console.error("Error fetching event count:", err);
-    countEl.textContent = "Error loading event count";
-  }
 }
