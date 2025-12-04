@@ -11,7 +11,8 @@ const db = mysql.createConnection({
   user: "root",
   password: "",
   database: "getlitty",
-  ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false },
+  multipleStatements: true // needed to handle multiple SELECTs from stored procedure
 });
 
 db.connect(err => {
@@ -19,7 +20,7 @@ db.connect(err => {
   else console.log("Connected to Google Cloud SQL");
 });
 
-// ENDPOINT #0: Recommended events (<= 10 miles, available) -- SURPIRSE ME
+// ENDPOINT #0: Recommended events (<= 10 miles, available) -- SURPRISE ME
 app.get("/events/recommendations", (req, res) => {
   const query = `
     SELECT 
@@ -49,28 +50,12 @@ app.get("/events/recommendations", (req, res) => {
   });
 });
 
-// ENDPOINT #1: Cheapest Airbnb per event (≤1 mile)
+// ENDPOINT #1: Cheapest Airbnb per event (≤1 mile) using stored procedure
 app.get("/events/cheapest", (req, res) => {
-  const query = `
-    SELECT 
-      e.event_id,
-      e.name AS event_name,
-      c.city_name,
-      c.state,
-      MIN(n.total_cost) AS cheapest_total_cost
-    FROM Event e
-    JOIN Venue v ON e.venue_id = v.venue_id
-    JOIN Nearby n ON e.event_id = n.event_id
-    JOIN AirbnbListing a ON n.listing_id = a.listing_id
-    JOIN City c ON v.city_id = c.city_id
-    WHERE n.distance <= 1
-    GROUP BY e.event_id, e.name, c.city_name, c.state
-    ORDER BY cheapest_total_cost ASC
-    LIMIT 15;
-  `;
-  db.query(query, (err, results) => {
+  db.query("CALL sp_event_airbnb_summary();", (err, results) => {
     if (err) return res.status(500).json(err);
-    res.json(results);
+    // results[0] contains tmp_cheapest_airbnb
+    res.json(results[0]);
   });
 });
 
@@ -99,34 +84,12 @@ app.get("/events/illinois-cheapest", (req, res) => {
   });
 });
 
-// ENDPOINT #3: Events with most available Airbnb listings (within 5 miles)
+// ENDPOINT #3: Events with most available Airbnb listings (within 5 miles) using stored procedure
 app.get("/events/most-availability", (req, res) => {
-  const query = `
-    SELECT 
-      E.event_id,
-      E.name AS event_name,
-      C.city_name,
-      C.state,
-      COUNT(A.listing_id) AS num_available_listings,
-      ROUND(AVG(A.price_per_night), 2) AS avg_price_per_night,
-      MIN(N.distance) AS closest_listing_distance
-    FROM Event E
-    JOIN Venue V ON E.venue_id = V.venue_id
-    JOIN City C ON V.city_id = C.city_id
-    JOIN Nearby N ON E.event_id = N.event_id
-    JOIN AirbnbListing A ON N.listing_id = A.listing_id
-    WHERE N.distance <= 5
-      AND A.availability_365 > 0
-    GROUP BY E.event_id, E.name, C.city_name, C.state
-    ORDER BY num_available_listings DESC, avg_price_per_night ASC
-    LIMIT 15;
-  `;
-  db.query(query, (err, results) => {
-    if (err) {
-      console.error("Error fetching most availability events:", err);
-      return res.status(500).json({ error: "Database error" });
-    }
-    res.json(results);
+  db.query("CALL sp_event_airbnb_summary();", (err, results) => {
+    if (err) return res.status(500).json(err);
+    // results[1] contains tmp_most_available
+    res.json(results[1]);
   });
 });
 
@@ -169,14 +132,12 @@ app.get("/events/chicago-below-avg", (req, res) => {
 });
 
 // ENDPOINT #5: Search events with filters (name, date range, maxDistance)
-// Returns same fields as /events/recommendations but filtered by user inputs
 app.get("/events/search", (req, res) => {
-  const name = req.query.name;                 // optional partial event name
-  const startDate = req.query.startDate;       // optional YYYY-MM-DD
-  const endDate = req.query.endDate;           // optional YYYY-MM-DD
-  const maxDistance = Number(req.query.maxDistance ?? 10); // default 10 miles
+  const name = req.query.name;                 
+  const startDate = req.query.startDate;       
+  const endDate = req.query.endDate;           
+  const maxDistance = Number(req.query.maxDistance ?? 10); 
 
-  // Base query (same selected fields as recommendations)
   let query = `
     SELECT 
       E.event_id,
@@ -184,7 +145,7 @@ app.get("/events/search", (req, res) => {
       E.date,
       V.venue_name,
       V.latitude AS venue_lat,    
-       V.longitude AS venue_lng,
+      V.longitude AS venue_lng,
       C.city_name,
       C.state,
       N.distance,
@@ -199,29 +160,12 @@ app.get("/events/search", (req, res) => {
     WHERE A.availability_365 > 0
   `;
 
-  // Params array for parameterized query
   const params = [];
 
-  // Add optional filters
-  if (name) {
-    query += ` AND E.name LIKE CONCAT('%', ?, '%')`;
-    params.push(name);
-  }
-
-  if (startDate) {
-    query += ` AND E.date >= ?`;
-    params.push(startDate);
-  }
-
-  if (endDate) {
-    query += ` AND E.date <= ?`;
-    params.push(endDate);
-  }
-
-  if (!Number.isNaN(maxDistance)) {
-    query += ` AND N.distance <= ?`;
-    params.push(maxDistance);
-  }
+  if (name) { query += ` AND E.name LIKE CONCAT('%', ?, '%')`; params.push(name); }
+  if (startDate) { query += ` AND E.date >= ?`; params.push(startDate); }
+  if (endDate) { query += ` AND E.date <= ?`; params.push(endDate); }
+  if (!Number.isNaN(maxDistance)) { query += ` AND N.distance <= ?`; params.push(maxDistance); }
 
   query += `
     ORDER BY estimated_total_cost ASC, N.distance ASC
@@ -229,10 +173,7 @@ app.get("/events/search", (req, res) => {
   `;
 
   db.query(query, params, (err, results) => {
-    if (err) {
-      console.error("Error in /events/search:", err);
-      return res.status(500).json({ error: "Database error" });
-    }
+    if (err) return res.status(500).json({ error: "Database error" });
     res.json(results);
   });
 });
@@ -259,10 +200,7 @@ app.get("/events/:eventId/top-listings", (req, res) => {
   `;
 
   db.query(query, [eventId], (err, results) => {
-    if (err) {
-      console.error("Error fetching top listings:", err);
-      return res.status(500).json({ error: "Database error" });
-    }
+    if (err) return res.status(500).json({ error: "Database error" });
     res.json(results);
   });
 });
