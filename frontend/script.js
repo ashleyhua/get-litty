@@ -449,11 +449,13 @@ if (distRange && distVal) {
 document.addEventListener("DOMContentLoaded", () => {
   try {
     initMapIfNeeded();
+    updateEventCount();  // NEW
     console.log("[map] DOM loaded — initMapIfNeeded called");
   } catch (err) {
     console.error("[map] DOMContentLoaded init error", err);
   }
 });
+
 
 const USER_ID = 1;
 
@@ -493,6 +495,7 @@ attachIfExists("addEventBtn", async () => {
     console.error("Error adding event:", err);
     showMessage(messageEl, "Network error. Please try again.", "error");
   }
+  updateEventCount();
 });
 
 // View user's events
@@ -569,6 +572,7 @@ attachIfExists("removeEventBtn", async () => {
     console.error("Error removing event:", err);
     showMessage(messageEl, "Network error. Please try again.", "error");
   }
+  updateEventCount();
 });
 
 // Helper function to show messages
@@ -580,4 +584,24 @@ function showMessage(element, text, type) {
   setTimeout(() => {
     element.style.display = "none";
   }, 5000);
+}
+
+async function updateEventCount() {
+  const countEl = document.getElementById("eventCount");
+  if (!countEl) return;
+
+  try {
+    const res = await fetch(`${backendURL}/user/${USER_ID}/events`);
+    if (!res.ok) {
+      countEl.textContent = "Error loading event count";
+      return;
+    }
+
+    const events = await res.json();
+    const count = events.length;
+    countEl.textContent = `You have ${count} event${count !== 1 ? "s" : ""} scheduled`;
+  } catch (err) {
+    console.error("Error fetching event count:", err);
+    countEl.textContent = "Error loading event count";
+  }
 }
