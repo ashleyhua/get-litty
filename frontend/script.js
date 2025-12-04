@@ -509,6 +509,7 @@ attachIfExists("viewEventsBtn", async () => {
 
     if (!events || events.length === 0) {
       listEl.innerHTML = "<p class='muted'>You haven't added any events yet.</p>";
+      updateEventCount(); // also update count even if 0
       return;
     }
 
@@ -524,11 +525,15 @@ attachIfExists("viewEventsBtn", async () => {
         </div>
       </div>
     `).join("");
+
+    updateEventCount(); 
   } catch (err) {
     console.error("Error fetching events:", err);
     listEl.innerHTML = "<p class='error'>Network error. Please try again.</p>";
+    updateEventCount();
   }
 });
+
 
 // Remove event from user's list
 attachIfExists("removeEventBtn", async () => {
