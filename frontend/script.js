@@ -489,13 +489,15 @@ attachIfExists("addEventBtn", async () => {
     console.error("Error adding event:", err);
     showMessage(messageEl, "Network error. Please try again.", "error");
   }
-  updateEventCount();
 });
 
 // View user's events
 attachIfExists("viewEventsBtn", async () => {
   const listEl = document.getElementById("myEventsList");
+  const countEl = document.getElementById("eventCount");
+  
   listEl.innerHTML = "<p>Loading...</p>";
+  countEl.style.display = "none";
 
   try {
     const res = await fetch(`${backendURL}/user/${USER_ID}/events`);
@@ -513,6 +515,12 @@ attachIfExists("viewEventsBtn", async () => {
       return;
     }
 
+    // Update count
+    const count = events.length;
+    countEl.textContent = `You have ${count} event${count !== 1 ? "s" : ""} scheduled`;
+    countEl.style.display = "block";
+
+    // Display events
     listEl.innerHTML = events.map(e => `
       <div class="event-item">
         <strong>${escapeHtml(e.event_name)}</strong>
@@ -571,7 +579,6 @@ attachIfExists("removeEventBtn", async () => {
     console.error("Error removing event:", err);
     showMessage(messageEl, "Network error. Please try again.", "error");
   }
-  updateEventCount();
 });
 
 // Helper function to show messages
