@@ -443,6 +443,7 @@ if (distRange && distVal) {
 document.addEventListener("DOMContentLoaded", () => {
   try {
     initMapIfNeeded();
+    // updateEventCount(); 
     console.log("[map] DOM loaded — initMapIfNeeded called");
   } catch (err) {
     console.error("[map] DOMContentLoaded init error", err);
@@ -510,8 +511,7 @@ attachIfExists("viewEventsBtn", async () => {
 
     if (!events || events.length === 0) {
       listEl.innerHTML = "<p class='muted'>You haven't added any events yet.</p>";
-      countEl.textContent = "You have 0 events scheduled";
-      countEl.style.display = "block";
+      updateEventCount(); // also update count even if 0
       return;
     }
 
@@ -533,11 +533,15 @@ attachIfExists("viewEventsBtn", async () => {
         </div>
       </div>
     `).join("");
+
+    updateEventCount(); 
   } catch (err) {
     console.error("Error fetching events:", err);
     listEl.innerHTML = "<p class='error'>Network error. Please try again.</p>";
+    updateEventCount();
   }
 });
+
 
 // Remove event from user's list
 attachIfExists("removeEventBtn", async () => {
@@ -587,3 +591,26 @@ function showMessage(element, text, type) {
     element.style.display = "none";
   }, 5000);
 }
+
+async function updateEventCount() {
+  const countEl = document.getElementById("eventCount");
+  if (!countEl) return;
+
+  countEl.style.display = "block"; // show when updating
+
+  try {
+    const res = await fetch(`${backendURL}/user/${USER_ID}/events`);
+    if (!res.ok) {
+      countEl.textContent = "Error loading event count";
+      return;
+    }
+
+    const events = await res.json();
+    const count = events.length;
+    countEl.textContent = `You have ${count} event${count !== 1 ? "s" : ""} scheduled`;
+  } catch (err) {
+    console.error("Error fetching event count:", err);
+    countEl.textContent = "Error loading event count";
+  }
+}
+
