@@ -457,8 +457,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-// ========== USER EVENTS FUNCTIONALITY ==========
-const USER_ID = 1; // Single user for school project
+const USER_ID = 1;
 
 // Add event to user's list
 attachIfExists("addEventBtn", async () => {
