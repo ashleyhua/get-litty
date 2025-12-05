@@ -52,6 +52,7 @@ app.get("/events/cheapest", (req, res) => {
 });
 
 // ENDPOINT #2: Cheapest concerts in Illinois
+// ENDPOINT #2: Cheapest concerts in Illinois
 app.get("/events/illinois-cheapest", (req, res) => {
   const query = `
     SELECT 
@@ -60,7 +61,12 @@ app.get("/events/illinois-cheapest", (req, res) => {
       C.city_name,
       C.state,
       E.date,
-      MIN(N.total_cost) AS cheapest_total_cost
+      MIN(N.total_cost) AS cheapest_total_cost,
+      (SELECT N2.listing_id 
+       FROM Nearby N2 
+       WHERE N2.event_id = E.event_id
+       ORDER BY N2.total_cost ASC 
+       LIMIT 1) AS listing_id
     FROM Event E
     JOIN Venue V ON E.venue_id = V.venue_id
     JOIN City C ON V.city_id = C.city_id
@@ -86,6 +92,7 @@ app.get("/events/most-availability", (req, res) => {
 });
 
 // ENDPOINT #4: Chicago concerts with below-avg lodging
+// ENDPOINT #4: Chicago concerts with below-avg lodging
 app.get("/events/chicago-below-avg", (req, res) => {
   const query = `
     SELECT 
@@ -94,7 +101,15 @@ app.get("/events/chicago-below-avg", (req, res) => {
       C.city_name,
       C.state,
       E.date,
-      MIN(A.price_per_night) AS cheapest_airbnb_price
+      MIN(A.price_per_night) AS cheapest_airbnb_price,
+      (SELECT N2.listing_id 
+       FROM Nearby N2 
+       JOIN AirbnbListing A2 ON N2.listing_id = A2.listing_id
+       WHERE N2.event_id = E.event_id 
+         AND N2.distance <= 1 
+         AND A2.availability_365 > 0
+       ORDER BY A2.price_per_night ASC 
+       LIMIT 1) AS listing_id
     FROM Event E
     JOIN Venue V ON E.venue_id = V.venue_id
     JOIN City C ON V.city_id = C.city_id
@@ -124,7 +139,6 @@ app.get("/events/chicago-below-avg", (req, res) => {
 });
 
 // ENDPOINT #5: Search events with filters (name, date range, maxDistance)
-// ENDPOINT #6: Search events with filters (name, date range, maxDistance)
 app.get("/events/search", (req, res) => {
   const name = req.query.name;                 
   const startDate = req.query.startDate;       

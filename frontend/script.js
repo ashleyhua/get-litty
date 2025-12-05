@@ -47,6 +47,8 @@ function normalizeRow(e) {
     num_available_listings: Number(e.num_available_listings ?? e.count ?? 0),
     closest_listing_distance: Number(e.closest_listing_distance ?? e.min_distance ?? 0),
     cheapest_airbnb_price: Number(e.cheapest_airbnb_price ?? e.min_price_per_night ?? 0),
+    
+    listing_id: e.listing_id ?? null,
 
     venue_lat:
       e.venue_lat !== undefined && e.venue_lat !== null && !Number.isNaN(Number(e.venue_lat))
@@ -84,7 +86,8 @@ function populateTable(events, queryType = 'default') {
   };
 
   // Query 1
- if (queryType === 'q1') {
+ // Query 1
+if (queryType === 'q1') {
   thead.innerHTML = `
     <th>Event ID</th>
     <th>Event</th>
@@ -108,9 +111,11 @@ function populateTable(events, queryType = 'default') {
 }
 
   // Query 2
-  else if (queryType === 'q2') {
+  // Query 2
+else if (queryType === 'q2') {
   thead.innerHTML = `
     <th>Event ID</th>
+    <th>Listing ID</th>
     <th>Event</th>
     <th>City</th>
     <th>State</th>
@@ -123,6 +128,7 @@ function populateTable(events, queryType = 'default') {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${e.event_id ?? e.id ?? ''}</td>
+      <td>${e.listing_id ?? ''}</td>
       <td>${escapeHtml(safe(e.event_name ?? e.name))}</td>
       <td>${escapeHtml(safe(e.city_name ?? e.city))}</td>
       <td>${escapeHtml(safe(e.state))}</td>
@@ -163,9 +169,10 @@ function populateTable(events, queryType = 'default') {
 }
 
   // Query 4
-  else if (queryType === 'q4') {
+ else if (queryType === 'q4') {
   thead.innerHTML = `
     <th>Event ID</th>
+    <th>Listing ID</th>
     <th>Event</th>
     <th>City</th>
     <th>State</th>
@@ -178,6 +185,7 @@ function populateTable(events, queryType = 'default') {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${e.event_id ?? e.id ?? ''}</td>
+      <td>${e.listing_id ?? ''}</td>
       <td>${escapeHtml(safe(e.event_name ?? e.name))}</td>
       <td>${escapeHtml(safe(e.city_name ?? e.city))}</td>
       <td>${escapeHtml(safe(e.state))}</td>
@@ -191,6 +199,7 @@ function populateTable(events, queryType = 'default') {
   else {
   thead.innerHTML = `
     <th>Event ID</th>
+    <th>Listing ID</th>
     <th>Event</th>
     <th>City</th>
     <th>Date</th>
@@ -210,6 +219,7 @@ function populateTable(events, queryType = 'default') {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${e.event_id ?? e.id ?? ''}</td>
+      <td>${e.listing_id ?? ''}</td>
       <td>${escapeHtml(safe(eventName))}</td>
       <td>${escapeHtml(safe(city))}, ${escapeHtml(safe(state))}</td>
       <td>${escapeHtml(safe(date))}</td>
@@ -308,7 +318,6 @@ attachIfExists("q4Btn", async () => {
 });
 
 // Search and Surpise Buttons
-// Search and Surpise Buttons
 attachIfExists("searchBtn", async () => {
   const q = document.getElementById("searchInput").value.trim();
   const start = document.getElementById("startDate").value;
@@ -317,6 +326,8 @@ attachIfExists("searchBtn", async () => {
 
   const url = `/events/search?name=${encodeURIComponent(q)}&startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}&maxDistance=${encodeURIComponent(maxDist)}`;
   const events = await fetchEventsFromEndpoint(url, true);
+
+  console.log("Search results after normalization:", events); 
   populateTable(events, 'default');
   renderBest(events, 'search');
 

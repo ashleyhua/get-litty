@@ -30,14 +30,13 @@
         <button id="surpriseBtn">Surprise me 🎲</button>
       </div>
 
-      <!-- ADDED: Buttons to run each of the 4 SQL queries for demo/checkpoint -->
-      <div class="query-buttons" style="margin-top:10px;">
+       <h3 style="margin-top: 20px;"> Quick Insights! </h3>
+      <div class="query-buttons" style="margin-top:0px;">
         <button id="q1Btn">Cheapest Airbnb per Event within a mile</button>
         <button id="q2Btn">Cheapest in Illinois</button>
         <button id="q3Btn">Events with Most Available Listings within 5 miles</button>
-        <button id="q4Btn">Chicago Concerts Below Avg Lodging</button>
+        <button id="q4Btn">Chicago Concerts Below Avg Lodging within 1 mile</button>
       </div>
-      <!-- END ADDED -->
     </section>
 
     <section id="bestPanel" class="best-panel" style="display:none"></section>
@@ -64,7 +63,7 @@
       <div class="right">
         <h3>Map </h3>
         <div id="map" style="width:100%; height:400px;"></div>
-        <p class="muted"> Venue Location </p>
+        <p class="muted"> Top 5 Cheapest Airbnbs to the Top Event! </p>
       </div>
     </section>
 
@@ -72,7 +71,6 @@
       <section class="user-events">
         <h2>My Events</h2>
         
-        <!-- Add Event -->
         <div class="user-action">
           <h3>Add Event to Attend</h3>
           <input id="addEventId" type="number" placeholder="Enter Event ID" />
@@ -80,7 +78,6 @@
           <p id="addEventMessage" class="message"></p>
         </div>
 
-        <!-- View Events -->
         <div class="user-action">
           <h3>Events I'm Attending</h3>
           <button id="viewEventsBtn">Show My Events</button>
@@ -88,9 +85,8 @@
           <div id="myEventsList"></div>
         </div>
 
-        <!-- Remove Event -->
         <div class="user-action">
-          <h3>Remove Event</h3>
+          <h3>Remove Event :/</h3>
           <input id="removeEventId" type="number" placeholder="Enter Event ID" />
           <button id="removeEventBtn">Remove Event</button>
           <p id="removeEventMessage" class="message"></p>
@@ -98,7 +94,7 @@
 
         <!-- NEW: Add 5 Upcoming Events from City -->
         <div class="user-action">
-          <h3> Add 5 Upcoming Events from City</h3>
+          <h3> Add 5 Upcoming Events from City (Be spontaneous!) </h3>
           <input id="bulkCityName" type="text" placeholder="City name (e.g., Chicago)" />
           <button id="bulkAddCityBtn">Add 5 Soonest Events</button>
           <p id="bulkAddMessage" class="message"></p>
