@@ -592,18 +592,23 @@ attachIfExists("viewEventsBtn", async () => {
     countEl.style.display = "block";
 
     // Display events
-    listEl.innerHTML = events.map(e => `
-      <div class="event-item">
-        <strong>${escapeHtml(e.event_name)}</strong>
-        <div class="event-details">
-          Event ID: ${e.event_id} | 
-          ${escapeHtml(e.city_name)}, ${escapeHtml(e.state)} | 
-          ${e.date ? e.date.split('T')[0] : 'No date'} | 
-          ${e.venue_name ? escapeHtml(e.venue_name) : 'No venue'} | 
-          ${e.ticket_price ? `$${Number(e.ticket_price).toFixed(2)}` : 'Price TBA'}
+    listEl.innerHTML = events.map(e => {
+      const housingStatus = e.Housing_Confirmed === 'Y' ? '✓ Confirmed' : '✗ Not Confirmed';
+      const housingClass = e.Housing_Confirmed === 'Y' ? 'confirmed' : 'not-confirmed';
+      
+      return `
+        <div class="event-item">
+          <strong>${escapeHtml(e.event_name)}</strong>
+          <div class="event-details">
+            Event ID: ${e.event_id} | 
+            ${escapeHtml(e.city_name)}, ${escapeHtml(e.state)} | 
+            ${e.date ? e.date.split('T')[0] : 'No date'} | 
+            ${e.venue_name ? escapeHtml(e.venue_name) : 'No venue'} | 
+            <span class="${housingClass}">Housing: ${housingStatus}</span>
+          </div>
         </div>
-      </div>
-    `).join("");
+      `;
+    }).join("");
 
     updateEventCount();
   } catch (err) {
@@ -651,7 +656,7 @@ attachIfExists("removeEventBtn", async () => {
   }
 });
 
-// NEW: Add 5 upcoming events from city (TRANSACTION)
+// Add 5 upcoming events from city (TRANSACTION)
 attachIfExists("bulkAddCityBtn", async () => {
   const cityName = document.getElementById("bulkCityName").value.trim();
   const messageEl = document.getElementById("bulkAddMessage");
@@ -705,6 +710,58 @@ attachIfExists("bulkAddCityBtn", async () => {
     }
   } catch (err) {
     console.error("Error bulk adding events:", err);
+    showMessage(messageEl, "Network error. Please try again.", "error");
+  }
+});
+
+// Update housing confirmation status
+attachIfExists("updateHousingBtn", async () => {
+  const eventId = document.getElementById("housingEventId").value.trim();
+  const housingStatus = document.getElementById("housingStatus").value;
+  const messageEl = document.getElementById("housingMessage");
+  
+  if (!eventId) {
+    showMessage(messageEl, "Please enter an Event ID", "error");
+    return;
+  }
+
+  if (!housingStatus) {
+    showMessage(messageEl, "Please select a housing status", "error");
+    return;
+  }
+
+  try {
+    const res = await fetch(`${backendURL}/user/events/housing`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        userId: USER_ID, 
+        eventId: parseInt(eventId),
+        housingConfirmed: housingStatus
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMessage(messageEl, data.error || "Failed to update housing status", "error");
+      return;
+    }
+
+    const statusText = housingStatus === 'Y' ? 'confirmed ✓' : 'not confirmed';
+    showMessage(messageEl, `Housing ${statusText}`, "success");
+    
+    // Clear inputs
+    document.getElementById("housingEventId").value = "";
+    document.getElementById("housingStatus").value = "";
+    
+    // Auto-refresh the events list if it's visible
+    const listEl = document.getElementById("myEventsList");
+    if (listEl.innerHTML) {
+      document.getElementById("viewEventsBtn").click();
+    }
+  } catch (err) {
+    console.error("Error updating housing status:", err);
     showMessage(messageEl, "Network error. Please try again.", "error");
   }
 });

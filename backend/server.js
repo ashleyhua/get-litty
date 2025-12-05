@@ -263,6 +263,7 @@ app.post("/user/events", (req, res) => {
 });
 
 // ENDPOINT: Get all events user wants to attend
+// ENDPOINT: Get all events user wants to attend
 app.get("/user/:userId/events", (req, res) => {
   const userId = req.params.userId;
   
@@ -274,7 +275,8 @@ app.get("/user/:userId/events", (req, res) => {
       V.venue_name,
       C.city_name,
       C.state,
-      E.ticket_price
+      E.ticket_price,
+      W.Housing_Confirmed
     FROM WantsToAttend W
     JOIN Event E ON W.event_id = E.event_id
     JOIN Venue V ON E.venue_id = V.venue_id
@@ -313,6 +315,43 @@ app.delete("/user/events", (req, res) => {
     }
     
     res.json({ message: "Event removed successfully", eventId });
+  });
+});
+
+// ENDPOINT: Update housing confirmation status
+app.put("/user/events/housing", (req, res) => {
+  const { userId, eventId, housingConfirmed } = req.body;
+  
+  if (!userId || !eventId || !housingConfirmed) {
+    return res.status(400).json({ error: "userId, eventId, and housingConfirmed are required" });
+  }
+
+  if (housingConfirmed !== 'Y' && housingConfirmed !== 'N') {
+    return res.status(400).json({ error: "housingConfirmed must be 'Y' or 'N'" });
+  }
+
+  const query = `
+    UPDATE WantsToAttend 
+    SET Housing_Confirmed = ? 
+    WHERE user_id = ? AND event_id = ?
+  `;
+  
+  db.query(query, [housingConfirmed, userId, eventId], (err, result) => {
+    if (err) {
+      console.error("Error updating housing status:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Event not found in your list" });
+    }
+    
+    const status = housingConfirmed === 'Y' ? 'confirmed' : 'not confirmed';
+    res.json({ 
+      message: `Housing status updated to ${status}`,
+      eventId,
+      housingConfirmed 
+    });
   });
 });
 
