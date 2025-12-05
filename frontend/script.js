@@ -223,7 +223,7 @@ function populateTable(events, queryType = 'default') {
 }
 
 
-function renderBest(events) {
+function renderBest(events, mode = 'search') {
   const bestPanel = document.getElementById("bestPanel");
 
   if (!events || events.length === 0) {
@@ -238,19 +238,37 @@ function renderBest(events) {
   const cityName = b.city_name ?? b.city ?? "";
   const state = b.state ?? "";
   const date = b.date ? (typeof b.date === "string" ? b.date.split("T")[0] : b.date) : "";
+  const venueName = b.venue_name ?? b.venue ?? "";
 
-  let extras = [];
-  const distance = Number(b.distance ?? b.closest_listing_distance ?? 0);
-  const airbnbPrice = Number(b.avg_airbnb ?? b.avg_price_per_night ?? b.cheapest_airbnb_price ?? 0);
+  if (mode === 'surprise') {
+    bestPanel.innerHTML = `
+      <strong>You should attend...</strong>
+      <div>Event ID: ${escapeHtml(String(b.event_id ?? b.id ?? ''))}</div>
+      <div>${escapeHtml(eventName)}</div>
+      <div>${escapeHtml(date)}</div>
+      <div>${escapeHtml(venueName)}</div>
+    `;
+  } else {
+    let extras = [];
+    const distance = Number(b.distance ?? b.closest_listing_distance ?? 0);
+    const airbnbPrice = Number(b.avg_airbnb ?? b.avg_price_per_night ?? b.cheapest_airbnb_price ?? 0);
 
-  if (Number.isFinite(distance) && distance > 0) extras.push(`Distance: ${distance.toFixed(1)} mi`);
-  if (Number.isFinite(airbnbPrice) && airbnbPrice > 0) extras.push(`Airbnb: $${airbnbPrice.toFixed(2)}`);
+    if (Number.isFinite(distance) && distance > 0) extras.push(`Distance: ${distance.toFixed(1)} mi`);
+    if (Number.isFinite(airbnbPrice) && airbnbPrice > 0) extras.push(`Airbnb: $${airbnbPrice.toFixed(2)}`);
 
-  bestPanel.innerHTML = `
-    <strong>Best Option</strong>
-    <div>${escapeHtml(eventName)} — ${escapeHtml(cityName)}, ${escapeHtml(state)} on ${escapeHtml(date)}</div>
-    <div>${escapeHtml(extras.join(" • "))}</div>
-  `;
+    bestPanel.innerHTML = `
+      <strong>Best Option</strong>
+      <div>${escapeHtml(eventName)} — ${escapeHtml(cityName)}, ${escapeHtml(state)} on ${escapeHtml(date)}</div>
+      <div>${escapeHtml(extras.join(" • "))}</div>
+    `;
+  }
+}
+
+function hideBestPanel() {
+  const bestPanel = document.getElementById("bestPanel");
+  if (bestPanel) {
+    bestPanel.style.display = "none";
+  }
 }
 
 
@@ -265,29 +283,33 @@ attachIfExists("q1Btn", async () => {
   const events = await fetchEventsFromEndpoint("/events/cheapest", false);
   populateTable(events, 'q1');
   clearMapMarkers();
+  hideBestPanel();
 });
 
 attachIfExists("q2Btn", async () => {
   const events = await fetchEventsFromEndpoint("/events/illinois-cheapest", false);
   populateTable(events, 'q2');
   clearMapMarkers();
+  hideBestPanel();
 });
 
 attachIfExists("q3Btn", async () => {
   const events = await fetchEventsFromEndpoint("/events/most-availability", false);
   populateTable(events, 'q3');
   clearMapMarkers();
+  hideBestPanel();
 });
 
 attachIfExists("q4Btn", async () => {
   const events = await fetchEventsFromEndpoint("/events/chicago-below-avg", false);
   populateTable(events, 'q4');
   clearMapMarkers();
+  hideBestPanel();
 });
 
 // Search and Surpise Buttons
 attachIfExists("searchBtn", async () => {
-  const q = document.getElementById("searchInput").value.trim(); // DON'T double-encode here
+  const q = document.getElementById("searchInput").value.trim();
   const start = document.getElementById("startDate").value;
   const end = document.getElementById("endDate").value;
   const maxDist = document.getElementById("distanceRange").value;
@@ -295,7 +317,7 @@ attachIfExists("searchBtn", async () => {
   const url = `/events/search?name=${encodeURIComponent(q)}&startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}&maxDistance=${encodeURIComponent(maxDist)}`;
   const events = await fetchEventsFromEndpoint(url, true);
   populateTable(events, 'default');
-  renderBest(events);
+  renderBest(events, 'search');
 
   if (events && events.length > 0) {
     fetchAndShowTopListingsForEvent(events[0]);
@@ -303,9 +325,10 @@ attachIfExists("searchBtn", async () => {
 });
 
 attachIfExists("surpriseBtn", async () => {
-  const events = await fetchEventsFromEndpoint("/events/recommendations", true);
-  populateTable(events, 'default');
-  renderBest(events);
+  const events = await fetchEventsFromEndpoint("/events/random", true);
+  const tbody = document.querySelector("#resultsTable tbody");
+  tbody.innerHTML = "";
+  renderBest(events, 'surprise');
   clearMapMarkers();
 });
 

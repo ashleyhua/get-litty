@@ -20,8 +20,8 @@ db.connect(err => {
   else console.log("Connected to Google Cloud SQL");
 });
 
-// ENDPOINT #0: Recommended events (<= 10 miles, available) -- SURPRISE ME
-app.get("/events/recommendations", (req, res) => {
+// ENDPOINT #0: SURPRISE ME
+app.get("/events/random", (req, res) => {
   const query = `
     SELECT 
       E.event_id,
@@ -29,20 +29,12 @@ app.get("/events/recommendations", (req, res) => {
       E.date,
       V.venue_name,
       C.city_name,
-      C.state,
-      N.distance,
-      A.price_per_night AS avg_airbnb, 
-      (A.price_per_night + E.ticket_price) AS estimated_total_cost,
-      E.ticket_price
+      C.state
     FROM Event E
     JOIN Venue V ON E.venue_id = V.venue_id
     JOIN City C ON V.city_id = C.city_id
-    JOIN Nearby N ON E.event_id = N.event_id
-    JOIN AirbnbListing A ON N.listing_id = A.listing_id
-    WHERE N.distance <= 10
-      AND A.availability_365 > 0
-    ORDER BY estimated_total_cost ASC
-    LIMIT 10;
+    ORDER BY RAND()
+    LIMIT 1;
   `;
   db.query(query, (err, results) => {
     if (err) return res.status(500).json(err);
