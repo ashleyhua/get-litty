@@ -466,7 +466,6 @@ if (distRange && distVal) {
 document.addEventListener("DOMContentLoaded", () => {
   try {
     initMapIfNeeded();
-    // updateEventCount(); 
     console.log("[map] DOM loaded — initMapIfNeeded called");
   } catch (err) {
     console.error("[map] DOMContentLoaded init error", err);
@@ -534,7 +533,7 @@ attachIfExists("viewEventsBtn", async () => {
 
     if (!events || events.length === 0) {
       listEl.innerHTML = "<p class='muted'>You haven't added any events yet.</p>";
-      updateEventCount(); // also update count even if 0
+      updateEventCount();
       return;
     }
 
@@ -557,14 +556,13 @@ attachIfExists("viewEventsBtn", async () => {
       </div>
     `).join("");
 
-    updateEventCount(); 
+    updateEventCount();
   } catch (err) {
     console.error("Error fetching events:", err);
     listEl.innerHTML = "<p class='error'>Network error. Please try again.</p>";
     updateEventCount();
   }
 });
-
 
 // Remove event from user's list
 attachIfExists("removeEventBtn", async () => {
@@ -604,6 +602,64 @@ attachIfExists("removeEventBtn", async () => {
   }
 });
 
+// NEW: Add 5 upcoming events from city (TRANSACTION)
+attachIfExists("bulkAddCityBtn", async () => {
+  const cityName = document.getElementById("bulkCityName").value.trim();
+  const messageEl = document.getElementById("bulkAddMessage");
+  
+  if (!cityName) {
+    showMessage(messageEl, "Please enter a city name", "error");
+    return;
+  }
+
+  try {
+    const res = await fetch(`${backendURL}/user/events/bulk-add-city`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: USER_ID, cityName })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMessage(messageEl, data.error || "Failed to add events", "error");
+      
+      // Show skipped events if available
+      if (data.skippedEvents) {
+        console.log("Skipped events:", data.skippedEvents);
+      }
+      return;
+    }
+
+    let msg = `✓ Added ${data.addedCount} event(s)`;
+    if (data.skippedCount > 0) {
+      msg += ` (skipped ${data.skippedCount})`;
+    }
+    
+    showMessage(messageEl, msg, "success");
+    
+    // Clear input
+    document.getElementById("bulkCityName").value = "";
+    
+    // Log details
+    if (data.addedEvents && data.addedEvents.length > 0) {
+      console.log("Added events:", data.addedEvents);
+    }
+    if (data.skippedEvents && data.skippedEvents.length > 0) {
+      console.log("Skipped events:", data.skippedEvents);
+    }
+    
+    // Auto-refresh the events list
+    const listEl = document.getElementById("myEventsList");
+    if (listEl.innerHTML) {
+      document.getElementById("viewEventsBtn").click();
+    }
+  } catch (err) {
+    console.error("Error bulk adding events:", err);
+    showMessage(messageEl, "Network error. Please try again.", "error");
+  }
+});
+
 // Helper function to show messages
 function showMessage(element, text, type) {
   element.textContent = text;
@@ -619,7 +675,7 @@ async function updateEventCount() {
   const countEl = document.getElementById("eventCount");
   if (!countEl) return;
 
-  countEl.style.display = "block"; // show when updating
+  countEl.style.display = "block";
 
   try {
     const res = await fetch(`${backendURL}/user/${USER_ID}/events`);
@@ -636,4 +692,3 @@ async function updateEventCount() {
     countEl.textContent = "Error loading event count";
   }
 }
-
