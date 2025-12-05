@@ -338,7 +338,6 @@ attachIfExists("searchBtn", async () => {
     console.log("[search] fetching top 5 listings for event:", eventId, "within", maxDist, "miles");
     
     try {
-      // Pass the distance filter to the endpoint
       const res = await fetch(`${backendURL}/events/${eventId}/top-listings?maxDistance=${maxDist}`);
       
       if (res.ok) {
@@ -405,7 +404,6 @@ function showTopListingsOnMap(listings = [], venueLatLng = null) {
   const bounds = [];
 
   listings.forEach((l, index) => {
-    // Use parseFloat to handle string coordinates from database
     const lat = parseFloat(l.latitude ?? l.lat ?? l.lat_dd ?? l.latitude_dd ?? NaN);
     const lng = parseFloat(l.longitude ?? l.lng ?? l.lon ?? l.longitude_dd ?? NaN);
     
@@ -461,7 +459,7 @@ function showTopListingsOnMap(listings = [], venueLatLng = null) {
   }
 }
 
-// Fetch top-5 listings for the given event object and show on map
+// Fetch top-5 listings for the given event and show on map
 async function fetchAndShowTopListingsForEvent(eventObj) {
   if (!eventObj) return;
 
@@ -524,7 +522,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
 const USER_ID = 1;
 
-// Add event to user's list
 attachIfExists("addEventBtn", async () => {
   const eventId = document.getElementById("addEventId").value.trim();
   const messageEl = document.getElementById("addEventMessage");
@@ -551,7 +548,6 @@ attachIfExists("addEventBtn", async () => {
     showMessage(messageEl, "Event added successfully! 🎉", "success");
     document.getElementById("addEventId").value = "";
     
-    // Auto-refresh the events list if it's visible
     const listEl = document.getElementById("myEventsList");
     if (listEl.innerHTML) {
       document.getElementById("viewEventsBtn").click();
@@ -562,7 +558,7 @@ attachIfExists("addEventBtn", async () => {
   }
 });
 
-// View user's events
+
 attachIfExists("viewEventsBtn", async () => {
   const listEl = document.getElementById("myEventsList");
   const countEl = document.getElementById("eventCount");
@@ -586,12 +582,9 @@ attachIfExists("viewEventsBtn", async () => {
       return;
     }
 
-    // Update count
     const count = events.length;
     countEl.textContent = `You have ${count} event${count !== 1 ? "s" : ""} scheduled`;
     countEl.style.display = "block";
-
-    // Display events
     listEl.innerHTML = events.map(e => {
       const housingStatus = e.Housing_Confirmed === 'Y' ? '✓ Confirmed' : '✗ Not Confirmed';
       const housingClass = e.Housing_Confirmed === 'Y' ? 'confirmed' : 'not-confirmed';
@@ -618,7 +611,6 @@ attachIfExists("viewEventsBtn", async () => {
   }
 });
 
-// Remove event from user's list
 attachIfExists("removeEventBtn", async () => {
   const eventId = document.getElementById("removeEventId").value.trim();
   const messageEl = document.getElementById("removeEventMessage");
@@ -645,7 +637,6 @@ attachIfExists("removeEventBtn", async () => {
     showMessage(messageEl, "Event removed successfully ✓", "success");
     document.getElementById("removeEventId").value = "";
     
-    // Auto-refresh the events list if it's visible
     const listEl = document.getElementById("myEventsList");
     if (listEl.innerHTML) {
       document.getElementById("viewEventsBtn").click();
@@ -656,7 +647,6 @@ attachIfExists("removeEventBtn", async () => {
   }
 });
 
-// Add 5 upcoming events from city (TRANSACTION)
 attachIfExists("bulkAddCityBtn", async () => {
   const cityName = document.getElementById("bulkCityName").value.trim();
   const messageEl = document.getElementById("bulkAddMessage");
@@ -678,7 +668,6 @@ attachIfExists("bulkAddCityBtn", async () => {
     if (!res.ok) {
       showMessage(messageEl, data.error || "Failed to add events", "error");
       
-      // Show skipped events if available
       if (data.skippedEvents) {
         console.log("Skipped events:", data.skippedEvents);
       }
@@ -691,19 +680,8 @@ attachIfExists("bulkAddCityBtn", async () => {
     }
     
     showMessage(messageEl, msg, "success");
-    
-    // Clear input
     document.getElementById("bulkCityName").value = "";
     
-    // Log details
-    if (data.addedEvents && data.addedEvents.length > 0) {
-      console.log("Added events:", data.addedEvents);
-    }
-    if (data.skippedEvents && data.skippedEvents.length > 0) {
-      console.log("Skipped events:", data.skippedEvents);
-    }
-    
-    // Auto-refresh the events list
     const listEl = document.getElementById("myEventsList");
     if (listEl.innerHTML) {
       document.getElementById("viewEventsBtn").click();
@@ -714,7 +692,7 @@ attachIfExists("bulkAddCityBtn", async () => {
   }
 });
 
-// Update housing confirmation status
+
 attachIfExists("updateHousingBtn", async () => {
   const eventId = document.getElementById("housingEventId").value.trim();
   const housingStatus = document.getElementById("housingStatus").value;
@@ -751,11 +729,9 @@ attachIfExists("updateHousingBtn", async () => {
     const statusText = housingStatus === 'Y' ? 'confirmed ✓' : 'not confirmed';
     showMessage(messageEl, `Housing ${statusText}`, "success");
     
-    // Clear inputs
     document.getElementById("housingEventId").value = "";
     document.getElementById("housingStatus").value = "";
     
-    // Auto-refresh the events list if it's visible
     const listEl = document.getElementById("myEventsList");
     if (listEl.innerHTML) {
       document.getElementById("viewEventsBtn").click();
