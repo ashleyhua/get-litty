@@ -301,6 +301,135 @@ app.delete("/user/events", (req, res) => {
   });
 });
 
+// TRANSACTION ENDPOINT: Add 5 upcoming events from a city (with conflict check)
+app.post("/user/events/bulk-add-city", (req, res) => {
+  const { userId, cityName } = req.body;
 
+  if (!userId || !cityName) {
+    return res.status(400).json({ error: "userId and cityName are required" });
+  }
+
+  db.beginTransaction(err => {
+    if (err) {
+      console.error("Transaction start error:", err);
+      return res.status(500).json({ error: "Transaction error" });
+    }
+
+    // Advanced Query #1: Find soonest 5 events in the city (JOIN + ORDER BY + LIMIT)
+    const findEventsQuery = `
+      SELECT E.event_id, E.name, E.date
+      FROM Event E
+      JOIN Venue V ON E.venue_id = V.venue_id
+      JOIN City C ON V.city_id = C.city_id
+      WHERE C.city_name = ?
+        AND E.date >= CURDATE()
+      ORDER BY E.date ASC
+      LIMIT 5
+    `;
+
+    db.query(findEventsQuery, [cityName], (err, events) => {
+      if (err) {
+        console.error("Find events error:", err);
+        return db.rollback(() => res.status(500).json({ error: "Query error" }));
+      }
+
+      if (events.length === 0) {
+        return db.rollback(() => {
+          res.status(404).json({ error: "No upcoming events found in that city" });
+        });
+      }
+
+      // Advanced Query #2: Get all dates user already has events on (with aggregation) AND existing event IDs
+      const existingDataQuery = `
+        SELECT 
+          E.event_id,
+          E.date, 
+          COUNT(*) as event_count
+        FROM WantsToAttend W
+        JOIN Event E ON W.event_id = E.event_id
+        WHERE W.user_id = ?
+        GROUP BY E.event_id, E.date
+      `;
+
+      db.query(existingDataQuery, [userId], (err, existingData) => {
+        if (err) {
+          console.error("Existing data error:", err);
+          return db.rollback(() => res.status(500).json({ error: "Conflict check failed" }));
+        }
+
+        // Create Sets for fast lookup
+        const conflictDates = new Set(
+          existingData.map(d => new Date(d.date).toISOString().split('T')[0])
+        );
+        const existingEventIds = new Set(
+          existingData.map(d => d.event_id)
+        );
+
+        // Filter out events that conflict with existing dates OR are already in the list
+        const eventsToAdd = [];
+        const skippedEvents = [];
+
+        events.forEach(e => {
+          const eventDate = new Date(e.date).toISOString().split('T')[0];
+          
+          if (existingEventIds.has(e.event_id)) {
+            skippedEvents.push({
+              name: e.name,
+              date: eventDate,
+              reason: "Already in your list"
+            });
+          } else if (conflictDates.has(eventDate)) {
+            skippedEvents.push({
+              name: e.name,
+              date: eventDate,
+              reason: "Date conflict"
+            });
+          } else {
+            eventsToAdd.push(e);
+          }
+        });
+
+        if (eventsToAdd.length === 0) {
+          return db.rollback(() => {
+            res.status(409).json({ 
+              error: "All 5 soonest events are either already in your list or conflict with your existing schedule",
+              skippedEvents: skippedEvents
+            });
+          });
+        }
+
+        // Insert all non-conflicting events (use INSERT IGNORE as extra safety)
+        const values = eventsToAdd.map(e => `(${userId}, ${e.event_id})`).join(',');
+        const insertQuery = `INSERT IGNORE INTO WantsToAttend (user_id, event_id) VALUES ${values}`;
+
+        db.query(insertQuery, (err, result) => {
+          if (err) {
+            console.error("Insert error:", err);
+            return db.rollback(() => res.status(500).json({ error: "Insert failed", details: err.message }));
+          }
+
+          db.commit(commitErr => {
+            if (commitErr) {
+              console.error("Commit error:", commitErr);
+              return db.rollback(() => res.status(500).json({ error: "Commit error" }));
+            }
+
+            res.json({ 
+              message: "Events added successfully",
+              addedCount: eventsToAdd.length,
+              skippedCount: skippedEvents.length,
+              addedEvents: eventsToAdd.map(e => ({
+                event_id: e.event_id,
+                name: e.name,
+                date: new Date(e.date).toISOString().split('T')[0]
+              })),
+              skippedEvents: skippedEvents
+            });
+          });
+        });
+      });
+    });
+  });
+});
 
 app.listen(5000, () => console.log("backend running on http://localhost:5000"));
