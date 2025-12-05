@@ -579,14 +579,13 @@ attachIfExists("removeEventBtn", async () => {
   }
 });
 
-// NEW: Bulk add events from city (TRANSACTION)
+// NEW: Add 5 upcoming events from city (TRANSACTION)
 attachIfExists("bulkAddCityBtn", async () => {
   const cityName = document.getElementById("bulkCityName").value.trim();
-  const state = document.getElementById("bulkState").value.trim();
   const messageEl = document.getElementById("bulkAddMessage");
   
-  if (!cityName || !state) {
-    showMessage(messageEl, "Please enter both city name and state", "error");
+  if (!cityName) {
+    showMessage(messageEl, "Please enter a city name", "error");
     return;
   }
 
@@ -594,7 +593,7 @@ attachIfExists("bulkAddCityBtn", async () => {
     const res = await fetch(`${backendURL}/user/events/bulk-add-city`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: USER_ID, cityName, state })
+      body: JSON.stringify({ userId: USER_ID, cityName })
     });
 
     const data = await res.json();
@@ -602,23 +601,22 @@ attachIfExists("bulkAddCityBtn", async () => {
     if (!res.ok) {
       showMessage(messageEl, data.error || "Failed to add events", "error");
       
-      // Show conflicting events if available
-      if (data.conflictingEvents) {
-        console.log("Conflicting events:", data.conflictingEvents);
+      // Show skipped events if available
+      if (data.skippedEvents) {
+        console.log("Skipped events:", data.skippedEvents);
       }
       return;
     }
 
     let msg = `✓ Added ${data.addedCount} event(s)`;
     if (data.skippedCount > 0) {
-      msg += ` (skipped ${data.skippedCount} due to conflicts)`;
+      msg += ` (skipped ${data.skippedCount})`;
     }
     
     showMessage(messageEl, msg, "success");
     
-    // Clear inputs
+    // Clear input
     document.getElementById("bulkCityName").value = "";
-    document.getElementById("bulkState").value = "";
     
     // Log details
     if (data.addedEvents && data.addedEvents.length > 0) {
