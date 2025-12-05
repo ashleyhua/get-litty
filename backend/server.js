@@ -52,7 +52,6 @@ app.get("/events/cheapest", (req, res) => {
 });
 
 // ENDPOINT #2: Cheapest concerts in Illinois
-// ENDPOINT #2: Cheapest concerts in Illinois
 app.get("/events/illinois-cheapest", (req, res) => {
   const query = `
     SELECT 
@@ -91,7 +90,6 @@ app.get("/events/most-availability", (req, res) => {
   });
 });
 
-// ENDPOINT #4: Chicago concerts with below-avg lodging
 // ENDPOINT #4: Chicago concerts with below-avg lodging
 app.get("/events/chicago-below-avg", (req, res) => {
   const query = `
@@ -274,7 +272,8 @@ app.get("/user/:userId/events", (req, res) => {
       V.venue_name,
       C.city_name,
       C.state,
-      E.ticket_price
+      E.ticket_price,
+      W.Housing_Confirmed
     FROM WantsToAttend W
     JOIN Event E ON W.event_id = E.event_id
     JOIN Venue V ON E.venue_id = V.venue_id
@@ -316,6 +315,43 @@ app.delete("/user/events", (req, res) => {
   });
 });
 
+// ENDPOINT: Update housing confirmation status
+app.put("/user/events/housing", (req, res) => {
+  const { userId, eventId, housingConfirmed } = req.body;
+  
+  if (!userId || !eventId || !housingConfirmed) {
+    return res.status(400).json({ error: "userId, eventId, and housingConfirmed are required" });
+  }
+
+  if (housingConfirmed !== 'Y' && housingConfirmed !== 'N') {
+    return res.status(400).json({ error: "housingConfirmed must be 'Y' or 'N'" });
+  }
+
+  const query = `
+    UPDATE WantsToAttend 
+    SET Housing_Confirmed = ? 
+    WHERE user_id = ? AND event_id = ?
+  `;
+  
+  db.query(query, [housingConfirmed, userId, eventId], (err, result) => {
+    if (err) {
+      console.error("Error updating housing status:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Event not found in your list" });
+    }
+    
+    const status = housingConfirmed === 'Y' ? 'confirmed' : 'not confirmed';
+    res.json({ 
+      message: `Housing status updated to ${status}`,
+      eventId,
+      housingConfirmed 
+    });
+  });
+});
+
 // TRANSACTION ENDPOINT: Add 5 upcoming events from a city (with conflict check)
 app.post("/user/events/bulk-add-city", (req, res) => {
   const { userId, cityName } = req.body;
@@ -330,7 +366,7 @@ app.post("/user/events/bulk-add-city", (req, res) => {
       return res.status(500).json({ error: "Transaction error" });
     }
 
-    // Advanced Query #1: Find soonest 5 events in the city (JOIN + ORDER BY + LIMIT)
+    // Advanced Query #1: Find soonest 5 events in the city
     const findEventsQuery = `
       SELECT E.event_id, E.name, E.date
       FROM Event E
@@ -354,7 +390,7 @@ app.post("/user/events/bulk-add-city", (req, res) => {
         });
       }
 
-      // Advanced Query #2: Get all dates user already has events on (with aggregation) AND existing event IDs
+      // Advanced Query #2: Get all dates user already has events on AND existing event IDs
       const existingDataQuery = `
         SELECT 
           E.event_id,
@@ -372,7 +408,6 @@ app.post("/user/events/bulk-add-city", (req, res) => {
           return db.rollback(() => res.status(500).json({ error: "Conflict check failed" }));
         }
 
-        // Create Sets for fast lookup
         const conflictDates = new Set(
           existingData.map(d => new Date(d.date).toISOString().split('T')[0])
         );
@@ -380,7 +415,6 @@ app.post("/user/events/bulk-add-city", (req, res) => {
           existingData.map(d => d.event_id)
         );
 
-        // Filter out events that conflict with existing dates OR are already in the list
         const eventsToAdd = [];
         const skippedEvents = [];
 
@@ -413,7 +447,6 @@ app.post("/user/events/bulk-add-city", (req, res) => {
           });
         }
 
-        // Insert all non-conflicting events (use INSERT IGNORE as extra safety)
         const values = eventsToAdd.map(e => `(${userId}, ${e.event_id})`).join(',');
         const insertQuery = `INSERT IGNORE INTO WantsToAttend (user_id, event_id) VALUES ${values}`;
 

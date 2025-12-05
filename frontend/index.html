@@ -79,6 +79,13 @@
         </div>
 
         <div class="user-action">
+          <h3> Add 5 Upcoming Events from a City (Be spontaneous!) </h3>
+          <input id="bulkCityName" type="text" placeholder="City name (e.g., Chicago)" />
+          <button id="bulkAddCityBtn">Add 5 Soonest Events</button>
+          <p id="bulkAddMessage" class="message"></p>
+        </div>
+
+        <div class="user-action">
           <h3>Events I'm Attending</h3>
           <button id="viewEventsBtn">Show My Events</button>
           <p id="eventCount" class="muted" style="margin:5px 0; display:none;">Loading...</p>
@@ -86,18 +93,22 @@
         </div>
 
         <div class="user-action">
+          <h3>Found Housing for this Event yet?</h3>
+          <input id="housingEventId" type="number" placeholder="Enter Event ID" />
+          <select id="housingStatus">
+            <option value="">Select Status</option>
+            <option value="Y">Yes - Confirmed</option>
+            <option value="N">No - Not Confirmed</option>
+          </select>
+          <button id="updateHousingBtn">Update Housing</button>
+          <p id="housingMessage" class="message"></p>
+        </div>
+
+        <div class="user-action">
           <h3>Remove Event :/</h3>
           <input id="removeEventId" type="number" placeholder="Enter Event ID" />
           <button id="removeEventBtn">Remove Event</button>
           <p id="removeEventMessage" class="message"></p>
-        </div>
-
-        <!-- NEW: Add 5 Upcoming Events from City -->
-        <div class="user-action">
-          <h3> Add 5 Upcoming Events from City (Be spontaneous!) </h3>
-          <input id="bulkCityName" type="text" placeholder="City name (e.g., Chicago)" />
-          <button id="bulkAddCityBtn">Add 5 Soonest Events</button>
-          <p id="bulkAddMessage" class="message"></p>
         </div>
       </section>
     </footer>
