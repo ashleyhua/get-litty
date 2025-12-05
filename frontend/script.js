@@ -308,6 +308,7 @@ attachIfExists("q4Btn", async () => {
 });
 
 // Search and Surpise Buttons
+// Search and Surpise Buttons
 attachIfExists("searchBtn", async () => {
   const q = document.getElementById("searchInput").value.trim();
   const start = document.getElementById("startDate").value;
@@ -320,7 +321,30 @@ attachIfExists("searchBtn", async () => {
   renderBest(events, 'search');
 
   if (events && events.length > 0) {
-    fetchAndShowTopListingsForEvent(events[0]);
+    const bestEvent = events[0];
+    const eventId = bestEvent.event_id ?? bestEvent.id;
+    
+    console.log("[search] fetching top 5 listings for event:", eventId, "within", maxDist, "miles");
+    
+    try {
+      // Pass the distance filter to the endpoint
+      const res = await fetch(`${backendURL}/events/${eventId}/top-listings?maxDistance=${maxDist}`);
+      
+      if (res.ok) {
+        const listings = await res.json();
+        console.log("[search] got listings:", listings);
+        
+        const venueLat = Number(bestEvent.venue_lat ?? bestEvent.latitude ?? NaN);
+        const venueLng = Number(bestEvent.venue_lng ?? bestEvent.longitude ?? NaN);
+        const venueLatLng = Number.isFinite(venueLat) && Number.isFinite(venueLng) ? [venueLat, venueLng] : null;
+        
+        showTopListingsOnMap(listings, venueLatLng);
+      } else {
+        console.error("[search] failed to fetch listings:", res.status);
+      }
+    } catch (err) {
+      console.error("[search] error fetching listings for map:", err);
+    }
   }
 });
 
@@ -364,31 +388,45 @@ function showTopListingsOnMap(listings = [], venueLatLng = null) {
   if (!map) return;
   clearMapMarkers();
 
+  console.log("[map] showTopListingsOnMap called with:", listings);
+  console.log("[map] venue coords:", venueLatLng);
+
   const bounds = [];
 
-  listings.forEach(l => {
-    const lat = Number(l.latitude ?? l.lat ?? l.lat_dd ?? l.latitude_dd ?? NaN);
-    const lng = Number(l.longitude ?? l.lng ?? l.lon ?? l.longitude_dd ?? NaN);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+  listings.forEach((l, index) => {
+    // Use parseFloat to handle string coordinates from database
+    const lat = parseFloat(l.latitude ?? l.lat ?? l.lat_dd ?? l.latitude_dd ?? NaN);
+    const lng = parseFloat(l.longitude ?? l.lng ?? l.lon ?? l.longitude_dd ?? NaN);
+    
+    console.log(`[map] listing ${index} coords: lat=${lat}, lng=${lng}`);
+    
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      console.warn(`[map] skipping listing ${index} - invalid coords`);
+      return;
+    }
 
     const popup = `
       <div>
         <strong>Listing ${escapeHtml(String(l.listing_id ?? l.id ?? ""))}</strong><br/>
-        Price/night: $${Number(l.price_per_night ?? l.price ?? 0).toFixed(2)}<br/>
-        Distance: ${Number(l.distance ?? 0).toFixed(2)} mi<br/>
-        Total: $${Number(l.total_cost ?? 0).toFixed(2)}
+        Price/night: $${parseFloat(l.price_per_night ?? l.price ?? 0).toFixed(2)}<br/>
+        Distance: ${parseFloat(l.distance ?? 0).toFixed(2)} mi<br/>
+        Total: $${parseFloat(l.total_cost ?? 0).toFixed(2)}
       </div>
     `;
     const m = L.marker([lat, lng]).bindPopup(popup);
     markersLayer.addLayer(m);
     bounds.push([lat, lng]);
+    console.log(`[map] added listing ${index} marker`);
   });
 
   if (venueLatLng && Number.isFinite(venueLatLng[0]) && Number.isFinite(venueLatLng[1])) {
     bounds.push(venueLatLng);
     const venueMarker = L.circleMarker(venueLatLng, { radius: 7, color: "#1a73e8" }).bindPopup("<strong>Venue</strong>");
     markersLayer.addLayer(venueMarker);
+    console.log("[map] added venue marker");
   }
+
+  console.log("[map] total markers added:", listings.length + (venueLatLng ? 1 : 0));
 
   if (bounds.length) {
     try {
