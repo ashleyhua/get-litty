@@ -301,6 +301,121 @@ app.delete("/user/events", (req, res) => {
   });
 });
 
+// TRANSACTION ENDPOINT: Bulk add soonest 5 events from a city (with conflict check)
+app.post("/user/events/bulk-add-city", (req, res) => {
+  const { userId, cityName, state } = req.body;
 
+  if (!userId || !cityName || !state) {
+    return res.status(400).json({ error: "userId, cityName, and state are required" });
+  }
+
+  db.beginTransaction(err => {
+    if (err) {
+      console.error("Transaction start error:", err);
+      return res.status(500).json({ error: "Transaction error" });
+    }
+
+    // Advanced Query #1: Find soonest 5 events in the city (JOIN + ORDER BY + LIMIT)
+    const findEventsQuery = `
+      SELECT E.event_id, E.name, E.date
+      FROM Event E
+      JOIN Venue V ON E.venue_id = V.venue_id
+      JOIN City C ON V.city_id = C.city_id
+      WHERE C.city_name = ? AND C.state = ?
+        AND E.date >= CURDATE()
+      ORDER BY E.date ASC
+      LIMIT 5
+    `;
+
+    db.query(findEventsQuery, [cityName, state], (err, events) => {
+      if (err) {
+        console.error("Find events error:", err);
+        return db.rollback(() => res.status(500).json({ error: "Query error" }));
+      }
+
+      if (events.length === 0) {
+        return db.rollback(() => {
+          res.status(404).json({ error: "No upcoming events found in that city" });
+        });
+      }
+
+      // Advanced Query #2: Get all dates user already has events on (with aggregation)
+      const existingDatesQuery = `
+        SELECT E.date, COUNT(*) as event_count, GROUP_CONCAT(E.name SEPARATOR '; ') as event_names
+        FROM WantsToAttend W
+        JOIN Event E ON W.event_id = E.event_id
+        WHERE W.user_id = ?
+        GROUP BY E.date
+      `;
+
+      db.query(existingDatesQuery, [userId], (err, existingDates) => {
+        if (err) {
+          console.error("Existing dates error:", err);
+          return db.rollback(() => res.status(500).json({ error: "Conflict check failed" }));
+        }
+
+        // Create a Set of existing dates for fast lookup
+        const conflictDates = new Set(
+          existingDates.map(d => new Date(d.date).toISOString().split('T')[0])
+        );
+
+        // Filter out events that conflict with existing dates
+        const eventsToAdd = events.filter(e => {
+          const eventDate = new Date(e.date).toISOString().split('T')[0];
+          return !conflictDates.has(eventDate);
+        });
+
+        if (eventsToAdd.length === 0) {
+          return db.rollback(() => {
+            res.status(409).json({ 
+              error: "All 5 soonest events conflict with your existing schedule",
+              conflictingEvents: events.map(e => ({
+                name: e.name,
+                date: new Date(e.date).toISOString().split('T')[0]
+              }))
+            });
+          });
+        }
+
+        // Insert all non-conflicting events
+        const values = eventsToAdd.map(e => `(${userId}, ${e.event_id})`).join(',');
+        const insertQuery = `INSERT INTO WantsToAttend (user_id, event_id) VALUES ${values}`;
+
+        db.query(insertQuery, (err, result) => {
+          if (err) {
+            console.error("Insert error:", err);
+            return db.rollback(() => res.status(500).json({ error: "Insert failed" }));
+          }
+
+          db.commit(commitErr => {
+            if (commitErr) {
+              console.error("Commit error:", commitErr);
+              return db.rollback(() => res.status(500).json({ error: "Commit error" }));
+            }
+
+            res.json({ 
+              message: "Events added successfully",
+              addedCount: eventsToAdd.length,
+              skippedCount: events.length - eventsToAdd.length,
+              addedEvents: eventsToAdd.map(e => ({
+                event_id: e.event_id,
+                name: e.name,
+                date: new Date(e.date).toISOString().split('T')[0]
+              })),
+              skippedEvents: events.filter(e => {
+                const eventDate = new Date(e.date).toISOString().split('T')[0];
+                return conflictDates.has(eventDate);
+              }).map(e => ({
+                name: e.name,
+                date: new Date(e.date).toISOString().split('T')[0],
+                reason: "Date conflict"
+              }))
+            });
+          });
+        });
+      });
+    });
+  });
+});
 
 app.listen(5000, () => console.log("backend running on http://localhost:5000"));
