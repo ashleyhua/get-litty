@@ -1,3 +1,4 @@
+// Setting up database connection
 const express = require("express");
 const mysql = require("mysql2");
 const cors = require("cors");
@@ -42,8 +43,9 @@ app.get("/events/random", (req, res) => {
   });
 });
 
-// ENDPOINT #1: Cheapest Airbnb per event (≤1 mile) using stored procedure
+// ENDPOINT #1: Cheapest Airbnb per event within a mile (STORED PROCEDURE USED HERE)
 app.get("/events/cheapest", (req, res) => {
+  // executes the SQL procedure stored in the database
   db.query("CALL sp_event_airbnb_summary();", (err, results) => {
     if (err) return res.status(500).json(err);
     // results[0] contains tmp_cheapest_airbnb
@@ -73,7 +75,7 @@ app.get("/events/illinois-cheapest", (req, res) => {
     WHERE C.state = 'Illinois'
     GROUP BY E.event_id, C.city_name, C.state, E.date, E.name
     ORDER BY cheapest_total_cost ASC
-    LIMIT 15;
+    LIMIT 10;
   `;
   db.query(query, (err, results) => {
     if (err) return res.status(500).json(err);
@@ -81,7 +83,7 @@ app.get("/events/illinois-cheapest", (req, res) => {
   });
 });
 
-// ENDPOINT #3: Events with most available Airbnb listings (within 5 miles) using stored procedure
+// ENDPOINT #3: Events with most available Airbnb listings within 5 miles (STORED PROCEDURE USED HERE)
 app.get("/events/most-availability", (req, res) => {
   db.query("CALL sp_event_airbnb_summary();", (err, results) => {
     if (err) return res.status(500).json(err);
@@ -128,7 +130,7 @@ app.get("/events/chicago-below-avg", (req, res) => {
           AND N2.distance <= 1
     )
     ORDER BY cheapest_airbnb_price ASC
-    LIMIT 15;
+    LIMIT 10;
   `;
   db.query(query, (err, results) => {
     if (err) return res.status(500).json(err);
@@ -186,10 +188,10 @@ app.get("/events/search", (req, res) => {
   });
 });
 
-// GET /events/:eventId/top-listings (MAP)
+// MAP Endpoint 1: GET top listings
 app.get("/events/:eventId/top-listings", (req, res) => {
   const eventId = Number(req.params.eventId);
-  const maxDistance = Number(req.query.maxDistance ?? 200); // Default to 200 if not provided
+  const maxDistance = Number(req.query.maxDistance ?? 200);
   
   if (!Number.isFinite(eventId)) return res.status(400).json({ error: "Invalid event id" });
 
@@ -218,8 +220,8 @@ app.get("/events/:eventId/top-listings", (req, res) => {
   });
 });
 
-//TRIGGER RELATED STUFF
-// ENDPOINT: Add event to user's want-to-attend list
+
+// WantsToAttend Endpoint 1: Add event to user's want-to-attend list (TRIGGER USED HERE)
 app.post("/user/events", (req, res) => {
   const { userId, eventId } = req.body;
 
@@ -227,40 +229,21 @@ app.post("/user/events", (req, res) => {
     return res.status(400).json({ error: "userId and eventId are required" });
   }
 
-  // Start a transaction so trigger is respected atomically
-  db.beginTransaction(err => {
+  const query = `INSERT INTO WantsToAttend (user_id, event_id) VALUES (?, ?)`;
+  db.query(query, [userId, eventId], (err, result) => {
     if (err) {
-      console.error("Transaction start error:", err);
+      if (err.sqlMessage && err.sqlMessage.includes('already have an event')) {
+        return res.status(409).json({ error: "You already have an event scheduled on this date" });
+      }
+      console.error("Error adding event:", err);
       return res.status(500).json({ error: "Database error" });
     }
 
-    const query = `INSERT INTO WantsToAttend (user_id, event_id) VALUES (?, ?)`;
-    db.query(query, [userId, eventId], (err, result) => {
-      if (err) {
-        // Rollback transaction on error
-        return db.rollback(() => {
-          if (err.sqlMessage && err.sqlMessage.includes('already have an event')) {
-            return res.status(409).json({ error: "You already have an event scheduled on this date" });
-          }
-          console.error("Error adding event:", err);
-          return res.status(500).json({ error: "Database error" });
-        });
-      }
-
-      db.commit(commitErr => {
-        if (commitErr) {
-          return db.rollback(() => {
-            console.error("Transaction commit error:", commitErr);
-            return res.status(500).json({ error: "Database error" });
-          });
-        }
-        res.json({ message: "Event added successfully", eventId });
-      });
-    });
+    res.json({ message: "Event added successfully", eventId });
   });
 });
 
-// ENDPOINT: Get all events user wants to attend
+// WantsToAttend Endpoint 2: Get all events user wants to attend
 app.get("/user/:userId/events", (req, res) => {
   const userId = req.params.userId;
   
@@ -291,7 +274,7 @@ app.get("/user/:userId/events", (req, res) => {
   });
 });
 
-// ENDPOINT: Remove event from user's want-to-attend list
+// WantsToAttend Endpoint 3: Remove event from user's want-to-attend list
 app.delete("/user/events", (req, res) => {
   const { userId, eventId } = req.body;
   
@@ -315,7 +298,7 @@ app.delete("/user/events", (req, res) => {
   });
 });
 
-// ENDPOINT: Update housing confirmation status
+// WantsToAttend Endpoint 4: Update housing confirmation status
 app.put("/user/events/housing", (req, res) => {
   const { userId, eventId, housingConfirmed } = req.body;
   
@@ -352,7 +335,7 @@ app.put("/user/events/housing", (req, res) => {
   });
 });
 
-// TRANSACTION ENDPOINT: Add 5 upcoming events from a city (with conflict check)
+// WantsToAttend Endpoint 5: Add 5 upcoming events from a city (TRANSACTION USED HERE)
 app.post("/user/events/bulk-add-city", (req, res) => {
   const { userId, cityName } = req.body;
 
