@@ -1,6 +1,6 @@
-// script.js — corrected, robust to mixed server responses
 const backendURL = "http://localhost:5000";
 
+// Fetches Events from Endpoints
 async function fetchEventsFromEndpoint(path, shouldNormalize = true) {
   const url = `${backendURL}${path}`;
   console.log("[fetch] GET", url);
@@ -8,62 +8,54 @@ async function fetchEventsFromEndpoint(path, shouldNormalize = true) {
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) {
       const body = await res.text().catch(() => "<no body>");
-      console.error("[fetch] non-OK response:", res.status, body);
       return [];
     }
     const data = await res.json();
     if (!Array.isArray(data)) {
-      console.warn("[fetch] expected array, got:", data);
       return [];
     }
-    return shouldNormalize ? data.map(normalizeRow) : data;
+    if (shouldNormalize) {
+      return data.map(normalizeRow);
+    }
+    return data;
   } catch (err) {
-    console.error("[fetch] error", err);
     return [];
   }
 }
 
+// Maps database data to columns on the frontend
 function normalizeRow(e) {
   const out = {
-    id: e.event_id ?? e.id ?? null,
-    event_id: e.event_id ?? e.id ?? null,
-    name: e.event_name ?? e.name ?? "",
+    event_id: e.event_id,
+    name: e.name ?? e.event_name ?? "",
     event_name: e.event_name ?? e.name ?? "",
-    venue_name: e.venue_name ?? e.venue ?? "",
-    city_name: e.city_name ?? e.city ?? "",
-    state: e.state ?? "",
-    date:
-      e.date && typeof e.date === "string" && e.date.split
-        ? e.date.split("T")[0]
-        : e.date || "",
-    distance: Number(e.distance ?? e.distance_mi ?? e.dist_mi ?? 0),
-    avg_airbnb: Number(e.price_per_night ?? e.avg_price ?? e.avg_airbnb ?? 0),
-    avg_price_per_night: Number(e.avg_price_per_night ?? e.avg_airbnb ?? e.price_per_night ?? 0),
-    ticket_price: Number(e.ticket_price ?? e.price ?? 0),
-   
-    estimated_total_cost: Number(e.estimated_total_cost ?? e.cheapest_total_cost ?? 0),
-
-    cheapest_total_cost: Number(e.cheapest_total_cost ?? e.estimated_total_cost ?? 0),
-    num_available_listings: Number(e.num_available_listings ?? e.count ?? 0),
-    closest_listing_distance: Number(e.closest_listing_distance ?? e.min_distance ?? 0),
-    cheapest_airbnb_price: Number(e.cheapest_airbnb_price ?? e.min_price_per_night ?? 0),
-    
-    listing_id: e.listing_id ?? null,
-
-    venue_lat:
-      e.venue_lat !== undefined && e.venue_lat !== null && !Number.isNaN(Number(e.venue_lat))
-        ? Number(e.venue_lat)
-        : (e.latitude !== undefined && !Number.isNaN(Number(e.latitude)) ? Number(e.latitude) : NaN),
-    venue_lng:
-      e.venue_lng !== undefined && e.venue_lng !== null && !Number.isNaN(Number(e.venue_lng))
-        ? Number(e.venue_lng)
-        : (e.longitude !== undefined && !Number.isNaN(Number(e.longitude)) ? Number(e.longitude) : NaN)
+    venue_name: e.venue_name,
+    city_name: e.city_name,
+    state: e.state,
+    date: "",
+    distance: Number(e.distance || 0),
+    price_per_night: Number(e.price_per_night ?? e.avg_price_per_night ?? e.avg_airbnb ?? 0),
+    ticket_price: Number(e.ticket_price || 0),
+    estimated_total_cost: Number(e.estimated_total_cost || 0),
+    cheapest_total_cost: Number(e.cheapest_total_cost || 0),
+    num_available_listings: Number(e.num_available_listings || 0),
+    closest_listing_distance: Number(e.closest_listing_distance || 0),
+    cheapest_airbnb_price: Number(e.cheapest_airbnb_price || 0),
+    listing_id: e.listing_id,
+    latitude: Number(e.latitude),
+    longitude: Number(e.longitude)
   };
+
+  if (e.date && typeof e.date === "string" && e.date.split) {
+    out.date = e.date.split("T")[0];
+  } else {
+    out.date = e.date || "";
+  }
 
   return out;
 }
 
-//Table Rendering
+// Table Rendering
 function populateTable(events, queryType = 'default') {
   const tbody = document.querySelector("#resultsTable tbody");
   const thead = document.querySelector("#resultsTable thead tr");
@@ -74,11 +66,31 @@ function populateTable(events, queryType = 'default') {
     return;
   }
 
-  const safe = v => (v === null || v === undefined ? "" : v);
-  const fmtMoney = n => (Number.isFinite(Number(n)) ? `$${Number(Number(n)).toFixed(2)}` : "$0.00");
-  const fmtDist = n => (Number.isFinite(Number(n)) ? Number(Number(n)).toFixed(1) : "0.0");
-  const fmtDate = d => {
-    if (!d) return "";
+  const safe = function(v) {
+    if (v === null || v === undefined) {
+      return "";
+    }
+    return v;
+  };
+
+  const fmtMoney = function(n) {
+    if (Number.isFinite(Number(n))) {
+      return `$${Number(Number(n)).toFixed(2)}`;
+    }
+    return "$0.00";
+  };
+
+  const fmtDist = function(n) {
+    if (Number.isFinite(Number(n))) {
+      return Number(Number(n)).toFixed(1);
+    }
+    return "0.0";
+  };
+
+  const fmtDate = function(d) {
+    if (!d) {
+      return "";
+    }
     if (typeof d === "string" && d.includes("T")) {
       return d.split("T")[0];
     }
@@ -86,153 +98,153 @@ function populateTable(events, queryType = 'default') {
   };
 
   // Query 1
- // Query 1
-if (queryType === 'q1') {
-  thead.innerHTML = `
-    <th>Event ID</th>
-    <th>Event</th>
-    <th>City</th>
-    <th>State</th>
-    <th>Cheapest Total Cost</th>
-  `;
-
-  events.forEach((e, idx) => {
-    const cost = e.cheapest_total_cost ?? e.estimated_total_cost ?? 0;
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${e.event_id ?? e.id ?? ''}</td>
-      <td>${escapeHtml(safe(e.event_name ?? e.name))}</td>
-      <td>${escapeHtml(safe(e.city_name ?? e.city))}</td>
-      <td>${escapeHtml(safe(e.state))}</td>
-      <td style="text-align:right">${fmtMoney(cost)}</td>
+  if (queryType === 'q1') {
+    thead.innerHTML = `
+      <th>Event ID</th>
+      <th>Event</th>
+      <th>City</th>
+      <th>State</th>
+      <th>Cheapest Total Cost</th>
     `;
-    tbody.appendChild(row);
-  });
-}
+
+    events.forEach((e, idx) => {
+      const cost = e.cheapest_total_cost ?? e.estimated_total_cost ?? 0;
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${e.event_id ?? e.id ?? ''}</td>
+        <td>${escapeHtml(safe(e.event_name ?? e.name))}</td>
+        <td>${escapeHtml(safe(e.city_name ?? e.city))}</td>
+        <td>${escapeHtml(safe(e.state))}</td>
+        <td style="text-align:right">${fmtMoney(cost)}</td>
+      `;
+      tbody.appendChild(row);
+    });
+  }
 
   // Query 2
-  // Query 2
-else if (queryType === 'q2') {
-  thead.innerHTML = `
-    <th>Event ID</th>
-    <th>Listing ID</th>
-    <th>Event</th>
-    <th>City</th>
-    <th>State</th>
-    <th>Date</th>
-    <th>Cheapest Total Cost</th>
-  `;
-
-  events.forEach((e, idx) => {
-    const cost = e.cheapest_total_cost ?? e.estimated_total_cost ?? 0;
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${e.event_id ?? e.id ?? ''}</td>
-      <td>${e.listing_id ?? ''}</td>
-      <td>${escapeHtml(safe(e.event_name ?? e.name))}</td>
-      <td>${escapeHtml(safe(e.city_name ?? e.city))}</td>
-      <td>${escapeHtml(safe(e.state))}</td>
-      <td>${escapeHtml(fmtDate(e.date))}</td>
-      <td style="text-align:right">${fmtMoney(cost)}</td>
+  else if (queryType === 'q2') {
+    thead.innerHTML = `
+      <th>Event ID</th>
+      <th>Listing ID</th>
+      <th>Event</th>
+      <th>City</th>
+      <th>State</th>
+      <th>Date</th>
+      <th>Cheapest Total Cost</th>
     `;
-    tbody.appendChild(row);
-  });
-}
+
+    events.forEach((e, idx) => {
+      const cost = e.cheapest_total_cost ?? e.estimated_total_cost ?? 0;
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${e.event_id ?? e.id ?? ''}</td>
+        <td>${e.listing_id ?? ''}</td>
+        <td>${escapeHtml(safe(e.event_name ?? e.name))}</td>
+        <td>${escapeHtml(safe(e.city_name ?? e.city))}</td>
+        <td>${escapeHtml(safe(e.state))}</td>
+        <td>${escapeHtml(fmtDate(e.date))}</td>
+        <td style="text-align:right">${fmtMoney(cost)}</td>
+      `;
+      tbody.appendChild(row);
+    });
+  }
+
   // Query 3
   else if (queryType === 'q3') {
-  thead.innerHTML = `
-    <th>Event ID</th>
-    <th>Event</th>
-    <th>City</th>
-    <th>State</th>
-    <th>Available Listings</th>
-    <th>Avg Price/Night</th>
-    <th>Closest Distance (mi)</th>
-  `;
-
-  events.forEach((e, idx) => {
-    const num = e.num_available_listings ?? e.count ?? 0;
-    const avg = e.avg_price_per_night ?? e.avg_airbnb ?? e.avg_price ?? 0;
-    const closest = e.closest_listing_distance ?? e.min_distance ?? e.distance ?? 0;
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${e.event_id ?? e.id ?? ''}</td>
-      <td>${escapeHtml(safe(e.event_name ?? e.name))}</td>
-      <td>${escapeHtml(safe(e.city_name ?? e.city))}</td>
-      <td>${escapeHtml(safe(e.state))}</td>
-      <td style="text-align:right">${safe(num)}</td>
-      <td style="text-align:right">${fmtMoney(avg)}</td>
-      <td style="text-align:right">${fmtDist(closest)}</td>
+    thead.innerHTML = `
+      <th>Event ID</th>
+      <th>Event</th>
+      <th>City</th>
+      <th>State</th>
+      <th>Available Listings</th>
+      <th>Avg Price/Night</th>
+      <th>Closest Distance (mi)</th>
     `;
-    tbody.appendChild(row);
-  });
-}
+
+    events.forEach((e, idx) => {
+      const num = e.num_available_listings ?? e.count ?? 0;
+      const avg = e.avg_price_per_night ?? e.avg_airbnb ?? e.avg_price ?? 0;
+      const closest = e.closest_listing_distance ?? e.min_distance ?? e.distance ?? 0;
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${e.event_id ?? e.id ?? ''}</td>
+        <td>${escapeHtml(safe(e.event_name ?? e.name))}</td>
+        <td>${escapeHtml(safe(e.city_name ?? e.city))}</td>
+        <td>${escapeHtml(safe(e.state))}</td>
+        <td style="text-align:right">${safe(num)}</td>
+        <td style="text-align:right">${fmtMoney(avg)}</td>
+        <td style="text-align:right">${fmtDist(closest)}</td>
+      `;
+      tbody.appendChild(row);
+    });
+  }
 
   // Query 4
- else if (queryType === 'q4') {
-  thead.innerHTML = `
-    <th>Event ID</th>
-    <th>Listing ID</th>
-    <th>Event</th>
-    <th>City</th>
-    <th>State</th>
-    <th>Date</th>
-    <th>Cheapest Airbnb Price</th>
-  `;
-
-  events.forEach((e, idx) => {
-    const price = e.cheapest_airbnb_price ?? e.min_price_per_night ?? e.avg_airbnb ?? 0;
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${e.event_id ?? e.id ?? ''}</td>
-      <td>${e.listing_id ?? ''}</td>
-      <td>${escapeHtml(safe(e.event_name ?? e.name))}</td>
-      <td>${escapeHtml(safe(e.city_name ?? e.city))}</td>
-      <td>${escapeHtml(safe(e.state))}</td>
-      <td>${escapeHtml(fmtDate(e.date))}</td>
-      <td style="text-align:right">${fmtMoney(price)}</td>
+  else if (queryType === 'q4') {
+    thead.innerHTML = `
+      <th>Event ID</th>
+      <th>Listing ID</th>
+      <th>Event</th>
+      <th>City</th>
+      <th>State</th>
+      <th>Date</th>
+      <th>Cheapest Airbnb Price</th>
     `;
-    tbody.appendChild(row);
-  });
-}
+
+    events.forEach((e, idx) => {
+      const price = e.cheapest_airbnb_price ?? e.min_price_per_night ?? e.avg_airbnb ?? 0;
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${e.event_id ?? e.id ?? ''}</td>
+        <td>${e.listing_id ?? ''}</td>
+        <td>${escapeHtml(safe(e.event_name ?? e.name))}</td>
+        <td>${escapeHtml(safe(e.city_name ?? e.city))}</td>
+        <td>${escapeHtml(safe(e.state))}</td>
+        <td>${escapeHtml(fmtDate(e.date))}</td>
+        <td style="text-align:right">${fmtMoney(price)}</td>
+      `;
+      tbody.appendChild(row);
+    });
+  }
+
   // Search & Surprise Me
   else {
-  thead.innerHTML = `
-    <th>Event ID</th>
-    <th>Listing ID</th>
-    <th>Event</th>
-    <th>City</th>
-    <th>Date</th>
-    <th>Venue</th>
-    <th>Distance (mi)</th>
-    <th>Airbnb ($)</th>
-  `;
-
-  events.forEach((e, idx) => {
-    const eventName = e.event_name ?? e.name ?? "";
-    const city = e.city_name ?? e.city ?? "";
-    const state = e.state ?? "";
-    const date = e.date ?? "";
-    const venue = e.venue_name ?? e.venue ?? "";
-    const distance = Number(e.distance ?? e.distance_mi ?? 0);
-    const avgAirbnb = Number(e.avg_airbnb ?? e.price_per_night ?? 0);
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${e.event_id ?? e.id ?? ''}</td>
-      <td>${e.listing_id ?? ''}</td>
-      <td>${escapeHtml(safe(eventName))}</td>
-      <td>${escapeHtml(safe(city))}, ${escapeHtml(safe(state))}</td>
-      <td>${escapeHtml(safe(date))}</td>
-      <td>${escapeHtml(safe(venue))}</td>
-      <td style="text-align:right">${fmtDist(distance)}</td>
-      <td style="text-align:right">${fmtMoney(avgAirbnb)}</td>
+    thead.innerHTML = `
+      <th>Event ID</th>
+      <th>Listing ID</th>
+      <th>Event</th>
+      <th>City</th>
+      <th>Date</th>
+      <th>Venue</th>
+      <th>Distance (mi)</th>
+      <th>Airbnb ($)</th>
     `;
-    tbody.appendChild(row);
-  });
-}
+
+    events.forEach((e, idx) => {
+      const eventName = e.event_name ?? e.name ?? "";
+      const city = e.city_name ?? e.city ?? "";
+      const state = e.state ?? "";
+      const date = e.date ?? "";
+      const venue = e.venue_name ?? e.venue ?? "";
+      const distance = Number(e.distance ?? e.distance_mi ?? 0);
+      const avgAirbnb = Number(e.avg_airbnb ?? e.price_per_night ?? 0);
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${e.event_id ?? e.id ?? ''}</td>
+        <td>${e.listing_id ?? ''}</td>
+        <td>${escapeHtml(safe(eventName))}</td>
+        <td>${escapeHtml(safe(city))}, ${escapeHtml(safe(state))}</td>
+        <td>${escapeHtml(safe(date))}</td>
+        <td>${escapeHtml(safe(venue))}</td>
+        <td style="text-align:right">${fmtDist(distance)}</td>
+        <td style="text-align:right">${fmtMoney(avgAirbnb)}</td>
+      `;
+      tbody.appendChild(row);
+    });
+  }
 }
 
-
+// Rendering the best panel
 function renderBest(events, mode = 'search') {
   const bestPanel = document.getElementById("bestPanel");
 
@@ -327,7 +339,6 @@ attachIfExists("searchBtn", async () => {
   const url = `/events/search?name=${encodeURIComponent(q)}&startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}&maxDistance=${encodeURIComponent(maxDist)}`;
   const events = await fetchEventsFromEndpoint(url, true);
 
-  console.log("Search results after normalization:", events); 
   populateTable(events, 'default');
   renderBest(events, 'search');
 
@@ -349,9 +360,7 @@ attachIfExists("searchBtn", async () => {
         const venueLatLng = Number.isFinite(venueLat) && Number.isFinite(venueLng) ? [venueLat, venueLng] : null;
         
         showTopListingsOnMap(listings, venueLatLng);
-      } else {
-        console.error("[search] failed to fetch listings:", res.status);
-      }
+      } 
     } catch (err) {
       console.error("[search] error fetching listings for map:", err);
     }
@@ -373,10 +382,8 @@ let markersLayer = null;
 function initMapIfNeeded() {
   if (map) return;
   if (typeof L === "undefined") {
-    console.warn("Leaflet (L) not found. Make sure leaflet.js is loaded before script.js");
     return;
   }
-  console.log("[map] creating map");
   map = L.map("map", { zoomControl: true });
   map.setView([39.5, -98.35], 4);
 
@@ -385,7 +392,6 @@ function initMapIfNeeded() {
   }).addTo(map);
 
   markersLayer = L.layerGroup().addTo(map);
-  console.log("[map] created with tile layer and markers layer");
 }
 
 function clearMapMarkers() {
@@ -398,7 +404,7 @@ function showTopListingsOnMap(listings = [], venueLatLng = null) {
   if (!map) return;
   clearMapMarkers();
 
-  console.log("[map] showTopListingsOnMap called with:", listings);
+  console.log("[map] called with:", listings);
   console.log("[map] venue coords:", venueLatLng);
 
   const bounds = [];
@@ -410,7 +416,6 @@ function showTopListingsOnMap(listings = [], venueLatLng = null) {
     console.log(`[map] listing ${index} coords: lat=${lat}, lng=${lng}`);
     
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      console.warn(`[map] skipping listing ${index} - invalid coords`);
       return;
     }
 
@@ -425,17 +430,14 @@ function showTopListingsOnMap(listings = [], venueLatLng = null) {
     const m = L.marker([lat, lng]).bindPopup(popup);
     markersLayer.addLayer(m);
     bounds.push([lat, lng]);
-    console.log(`[map] added listing ${index} marker`);
   });
 
   if (venueLatLng && Number.isFinite(venueLatLng[0]) && Number.isFinite(venueLatLng[1])) {
     bounds.push(venueLatLng);
     const venueMarker = L.circleMarker(venueLatLng, { radius: 7, color: "#1a73e8" }).bindPopup("<strong>Venue</strong>");
     markersLayer.addLayer(venueMarker);
-    console.log("[map] added venue marker");
   }
 
-  console.log("[map] total markers added:", listings.length + (venueLatLng ? 1 : 0));
 
   if (bounds.length) {
     try {
@@ -519,7 +521,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-
+// WantsToAttend Buttons
 const USER_ID = 1;
 
 attachIfExists("addEventBtn", async () => {
@@ -692,7 +694,6 @@ attachIfExists("bulkAddCityBtn", async () => {
   }
 });
 
-
 attachIfExists("updateHousingBtn", async () => {
   const eventId = document.getElementById("housingEventId").value.trim();
   const housingStatus = document.getElementById("housingStatus").value;
@@ -742,7 +743,6 @@ attachIfExists("updateHousingBtn", async () => {
   }
 });
 
-// Helper function to show messages
 function showMessage(element, text, type) {
   element.textContent = text;
   element.className = `message ${type}`;
